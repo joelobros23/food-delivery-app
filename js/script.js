@@ -1,8 +1,6 @@
 // js/script.js
 
-/**
- * Initializes Lucide icons on the page.
- */
+
 function createIcons() {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
