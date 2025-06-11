@@ -1,0 +1,10 @@
+/* style.css */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+.hero-section {
+    background-image: url('https://placehold.co/1920x1080/FFF4ED/FF6B00?text=Delicious+Food');
+    background-size: cover;
+    background-position: center;
+}
