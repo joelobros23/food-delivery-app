@@ -45,7 +45,7 @@ function handleItemFavorite(button) {
         .catch(error => console.error('Network error:', error));
 }
 
-
+/*
 /**
  * Handles the logic for toggling the favorite status for a RESTAURANT.
  * @param {HTMLElement} button - The button element that was clicked.
