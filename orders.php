@@ -16,8 +16,9 @@ require_once "db_connection/config.php";
 // --- FETCH DATA FROM DATABASE ---
 
 // Fetch current orders (pending, preparing, out_for_delivery)
+// UPDATED: Added o.payment_method to the query
 $current_orders_sql = "
-    SELECT o.id, r.name as restaurant_name, r.banner_image_url, o.order_date, o.total_amount, o.status
+    SELECT o.id, r.name as restaurant_name, r.banner_image_url, o.order_date, o.total_amount, o.status, o.payment_method
     FROM orders o
     JOIN restaurants r ON o.restaurant_id = r.id
     WHERE o.customer_id = ? AND o.status IN ('pending', 'preparing', 'out_for_delivery')
@@ -34,8 +35,9 @@ if($stmt_current = mysqli_prepare($link, $current_orders_sql)){
 }
 
 // Fetch order history (delivered, cancelled)
+// UPDATED: Added o.payment_method to the query
 $history_orders_sql = "
-    SELECT o.id, r.name as restaurant_name, o.order_date, o.total_amount, o.status
+    SELECT o.id, r.name as restaurant_name, o.order_date, o.total_amount, o.status, o.payment_method
     FROM orders o
     JOIN restaurants r ON o.restaurant_id = r.id
     WHERE o.customer_id = ? AND o.status IN ('delivered', 'cancelled')
@@ -93,7 +95,9 @@ $active_page = 'orders';
                                 <div class="flex-1">
                                     <p class="font-bold text-lg text-gray-800"><?php echo htmlspecialchars($order['restaurant_name']); ?></p>
                                     <p class="text-sm text-gray-500">Order placed: <?php echo date("M d, Y, g:i A", strtotime($order['order_date'])); ?></p>
-                                    <p class="text-sm font-semibold text-gray-700">Total: ₱<?php echo number_format($order['total_amount'], 2); ?></p>
+                                    <!-- UPDATED: Display Payment Method -->
+                                    <p class="text-sm text-gray-500">Payment: <span class="font-medium text-gray-700"><?php echo strtoupper($order['payment_method']); ?></span></p>
+                                    <p class="text-sm font-semibold text-gray-700 mt-1">Total: ₱<?php echo number_format($order['total_amount'], 2); ?></p>
                                 </div>
                                 <div class="text-right">
                                      <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 mb-3">
@@ -127,6 +131,8 @@ $active_page = 'orders';
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Restaurant</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                    <!-- UPDATED: Add Payment Method Header -->
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                                 </tr>
@@ -138,6 +144,8 @@ $active_page = 'orders';
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?php echo htmlspecialchars($order['restaurant_name']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo date("M d, Y", strtotime($order['order_date'])); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₱<?php echo number_format($order['total_amount'], 2); ?></td>
+                                        <!-- UPDATED: Display Payment Method Cell -->
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-800"><?php echo strtoupper($order['payment_method']); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full <?php echo $order['status'] === 'delivered' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'; ?>">
                                                 <?php echo htmlspecialchars(ucfirst($order['status'])); ?>
@@ -151,7 +159,7 @@ $active_page = 'orders';
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="5" class="text-center py-10 text-gray-500">You have no past orders.</td>
+                                        <td colspan="6" class="text-center py-10 text-gray-500">You have no past orders.</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>

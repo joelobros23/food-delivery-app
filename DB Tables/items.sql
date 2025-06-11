@@ -51,6 +51,7 @@ CREATE TABLE `orders` (
   `delivery_address` VARCHAR(255) NOT NULL,
   `total_amount` DECIMAL(10, 2) NOT NULL,
   `status` ENUM('pending', 'preparing', 'out_for_delivery', 'delivered', 'cancelled') NOT NULL DEFAULT 'pending',
+  `payment_method` VARCHAR(50) NOT NULL DEFAULT 'cod',
   `delivery_notes` TEXT DEFAULT NULL,
   `order_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

@@ -17,7 +17,7 @@ $item_id = trim($_GET["id"]);
 $customer_id = $_SESSION['id'];
 $item_details = null;
 
-// UPDATED: The SQL query now also fetches the total favorite count for the item.
+// The SQL query now also fetches the total favorite count for the item.
 $sql = "
     SELECT 
         mi.id, mi.name as item_name, mi.description, mi.price, mi.image_url as item_image,
@@ -88,7 +88,6 @@ $active_page = 'search';
                                 </div>
                                 <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mt-2"><?php echo htmlspecialchars($item_details['item_name']); ?></h1>
                                 
-                                <!-- NEW: Favorite Count Display -->
                                 <?php if ($item_details['favorite_count'] > 0): ?>
                                     <p class="text-sm text-gray-500 mt-2 flex items-center">
                                         <i data-lucide="heart" class="w-4 h-4 mr-2 text-red-500 fill-current"></i>
@@ -102,7 +101,7 @@ $active_page = 'search';
                                 <p class="text-4xl font-extrabold text-gray-900">₱<?php echo number_format($item_details['price'], 2); ?></p>
                                 <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <button class="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-orange-600 bg-orange-100 hover:bg-orange-200">Add to Cart</button>
-                                    <button class="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700">Buy Now</button>
+                                    <button id="buy-now-btn" class="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700">Buy Now</button>
                                 </div>
                             </div>
                         </div>
@@ -112,6 +111,53 @@ $active_page = 'search';
              <?php require_once 'customer_dashboard_settings/bottom_nav.php'; ?>
         </div>
     </div>
+
+    <!-- Payment Modal -->
+    <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <div class="flex justify-between items-center mb-4">
+                 <h3 class="text-lg font-bold text-gray-900">Choose Payment Method</h3>
+                 <button id="close-modal-btn" class="p-1 rounded-full hover:bg-gray-200"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="space-y-3">
+                <button class="payment-option-btn w-full text-left p-3 border rounded-lg hover:border-orange-500 hover:bg-orange-50">Credit Card (Not Available)</button>
+                <button class="payment-option-btn w-full text-left p-3 border rounded-lg hover:border-orange-500 hover:bg-orange-50">GCash (Not Available)</button>
+                <a href="purchase.php?item_id=<?php echo $item_details['id']; ?>&restaurant_id=<?php echo $item_details['restaurant_id']; ?>" class="block w-full text-left p-3 border rounded-lg hover:border-orange-500 hover:bg-orange-50">Cash on Delivery</a>
+            </div>
+        </div>
+    </div>
     <script src="js/script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const buyNowBtn = document.getElementById('buy-now-btn');
+            const paymentModal = document.getElementById('payment-modal');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const paymentOptionBtns = document.querySelectorAll('.payment-option-btn');
+            
+            buyNowBtn.addEventListener('click', () => {
+                paymentModal.classList.remove('hidden');
+            });
+            
+            closeModalBtn.addEventListener('click', () => {
+                paymentModal.classList.add('hidden');
+            });
+            
+            // Close modal if clicking outside of it
+            paymentModal.addEventListener('click', (e) => {
+                if(e.target === paymentModal) {
+                    paymentModal.classList.add('hidden');
+                }
+            });
+
+            paymentOptionBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    if (btn.textContent.includes('Not Available')) {
+                        e.preventDefault();
+                        alert('This payment method is not available for this store.');
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
