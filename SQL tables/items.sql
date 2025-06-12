@@ -45,6 +45,7 @@ CREATE TABLE `menu_items` (
 --
 CREATE TABLE `orders` (
   `id` INT NOT NULL AUTO_INCREMENT,
+  `group_order_id` VARCHAR(255) NULL DEFAULT NULL,
   `customer_id` INT NOT NULL,
   `restaurant_id` INT NOT NULL,
   `rider_id` INT DEFAULT NULL, -- Can be NULL initially until a rider accepts the order

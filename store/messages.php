@@ -26,31 +26,41 @@ $order_summary = null;
 $sql_customer = "SELECT full_name FROM users WHERE id = ?";
 if($stmt_customer = mysqli_prepare($link, $sql_customer)) {
     mysqli_stmt_bind_param($stmt_customer, "i", $receiver_id);
-    mysqli_stmt_execute($stmt_customer);
-    mysqli_stmt_bind_result($stmt_customer, $c_name);
-    if(mysqli_stmt_fetch($stmt_customer)) { $customer_name = $c_name; }
+    if(mysqli_stmt_execute($stmt_customer)) {
+        mysqli_stmt_bind_result($stmt_customer, $c_name);
+        if(mysqli_stmt_fetch($stmt_customer)) { $customer_name = $c_name; }
+    }
     mysqli_stmt_close($stmt_customer);
 }
 
-// CORRECTED: Fetch 'id' along with other details to prevent null access errors.
+// Fetch a quick summary of the order to display
 $sql_summary = "SELECT id, order_date, total_amount FROM orders WHERE id = ?";
 if($stmt_summary = mysqli_prepare($link, $sql_summary)){
     mysqli_stmt_bind_param($stmt_summary, "i", $order_id);
-    mysqli_stmt_execute($stmt_summary);
-    $result_summary = mysqli_stmt_get_result($stmt_summary);
-    $order_summary = mysqli_fetch_assoc($result_summary); // Can still be null if order not found
+    if(mysqli_stmt_execute($stmt_summary)) {
+        $result_summary = mysqli_stmt_get_result($stmt_summary);
+        $order_summary = mysqli_fetch_assoc($result_summary);
+    }
     mysqli_stmt_close($stmt_summary);
 }
-
 
 // Fetch conversation history
 $sql_messages = "SELECT message, sent_at, sender_id FROM messages WHERE order_id = ? ORDER BY sent_at ASC";
 if ($stmt_messages = mysqli_prepare($link, $sql_messages)) {
     mysqli_stmt_bind_param($stmt_messages, "i", $order_id);
-    mysqli_stmt_execute($stmt_messages);
-    $result = mysqli_stmt_get_result($stmt_messages);
-    $messages = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    if(mysqli_stmt_execute($stmt_messages)) {
+        $result = mysqli_stmt_get_result($stmt_messages);
+        $messages = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    }
     mysqli_stmt_close($stmt_messages);
+}
+
+// Mark messages as read
+$sql_mark_read = "UPDATE messages SET is_read = 1 WHERE order_id = ? AND receiver_id = ?";
+if($stmt_read = mysqli_prepare($link, $sql_mark_read)) {
+    mysqli_stmt_bind_param($stmt_read, "ii", $order_id, $sender_id);
+    mysqli_stmt_execute($stmt_read);
+    mysqli_stmt_close($stmt_read);
 }
 
 mysqli_close($link);
@@ -61,7 +71,7 @@ $active_page = 'orders';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Message with <?php echo htmlspecialchars($customer_name); ?> - <?php echo SITE_NAME; ?></title>
+    <title>Message for Order #<?php echo htmlspecialchars($order_id); ?> - <?php echo SITE_NAME; ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -72,26 +82,17 @@ $active_page = 'orders';
         <?php require_once 'partials/sidebar.php'; ?>
         <div class="flex flex-col flex-1 h-full">
             <?php require_once 'partials/header.php'; ?>
-            <div class="flex-1 flex flex-col p-4 md:p-6 overflow-hidden">
+            <!-- This container now has min-h-0 to fix the flexbox overflow issue -->
+            <div class="flex-1 flex flex-col p-4 md:p-6 overflow-hidden min-h-0">
                 <a href="view_order.php?id=<?php echo $order_id; ?>" class="flex items-center text-gray-600 hover:text-orange-600 mb-4 font-medium"><i data-lucide="arrow-left" class="w-5 h-5 mr-2"></i>Back to Order Details</a>
-                <div class="bg-white rounded-lg shadow-lg flex flex-col flex-1">
+                <!-- The main chat card also gets min-h-0 -->
+                <div class="bg-white rounded-lg shadow-lg flex flex-col flex-1 min-h-0">
                     <div class="p-4 border-b">
                         <h1 class="text-xl font-bold text-gray-900">Conversation with <?php echo htmlspecialchars($customer_name); ?></h1>
                         <p class="text-sm text-gray-500">Regarding Order #<?php echo htmlspecialchars($order_id); ?></p>
                     </div>
                     <div id="message-container" class="flex-1 p-6 space-y-4 overflow-y-auto">
-                        <!-- Initial Order Card -->
-                        <div class="p-3 bg-gray-100 rounded-lg border border-gray-200">
-                            <p class="font-semibold">Order #<?php echo htmlspecialchars($order_summary['id'] ?? $order_id); ?></p>
-                            <p class="text-xs text-gray-500">Placed: <?php echo date("M d, Y", strtotime($order_summary['order_date'] ?? 'now')); ?></p>
-                            <div class="mt-2 flex justify-between items-center">
-                                <!-- CORRECTED: Use null coalescing operator to prevent errors if $order_summary is null -->
-                                <span class="font-bold text-lg">₱<?php echo number_format($order_summary['total_amount'] ?? 0, 2); ?></span>
-                                <a href="view_order.php?id=<?php echo $order_id; ?>" class="px-3 py-1 bg-white text-gray-800 text-sm rounded-md border hover:bg-gray-50">View Details</a>
-                            </div>
-                        </div>
-                        
-                        <!-- Messages will be loaded here -->
+                        <div class="p-3 bg-gray-100 rounded-lg border border-gray-200"><p class="font-semibold">Order #<?php echo htmlspecialchars($order_summary['id'] ?? $order_id); ?></p><p class="text-xs text-gray-500">Placed: <?php echo date("M d, Y", strtotime($order_summary['order_date'] ?? 'now')); ?></p><div class="mt-2 flex justify-between items-center"><span class="font-bold text-lg">₱<?php echo number_format($order_summary['total_amount'] ?? 0, 2); ?></span><a href="view_order.php?id=<?php echo $order_id; ?>" class="px-3 py-1 bg-white text-gray-800 text-sm rounded-md border hover:bg-gray-50">View Details</a></div></div>
                         <?php foreach($messages as $msg): ?>
                             <div class="flex <?php echo ($msg['sender_id'] == $sender_id) ? 'justify-end' : 'justify-start'; ?>">
                                 <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg <?php echo ($msg['sender_id'] == $sender_id) ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-800'; ?>">
@@ -103,12 +104,8 @@ $active_page = 'orders';
                     </div>
                     <div class="p-4 bg-gray-50 border-t">
                         <form id="message-form" class="flex items-center space-x-3">
-                            <input type="hidden" name="order_id" value="<?php echo $order_id; ?>">
-                            <input type="hidden" name="receiver_id" value="<?php echo $receiver_id; ?>">
-                            <input type="text" name="message" id="message-input" class="flex-1 block w-full px-4 py-2 border border-gray-300 rounded-full shadow-sm focus:ring-orange-500 focus:border-orange-500" placeholder="Type your message...">
-                            <button type="submit" class="bg-orange-600 text-white rounded-full p-3 hover:bg-orange-700">
-                                <i data-lucide="send" class="w-5 h-5"></i>
-                            </button>
+                            <input type="text" id="message-input" class="flex-1 block w-full px-4 py-2 border border-gray-300 rounded-full shadow-sm focus:ring-orange-500 focus:border-orange-500" placeholder="Type your message..." autocomplete="off">
+                            <button type="submit" class="bg-orange-600 text-white rounded-full p-3 hover:bg-orange-700"><i data-lucide="send" class="w-5 h-5"></i></button>
                         </form>
                     </div>
                 </div>
@@ -121,24 +118,78 @@ $active_page = 'orders';
             const messageContainer = document.getElementById('message-container');
             const messageForm = document.getElementById('message-form');
             const messageInput = document.getElementById('message-input');
+            
+            const orderId = "<?php echo $order_id; ?>";
+            const senderId = <?php echo $sender_id; ?>;
+            const receiverId = <?php echo $receiver_id; ?>;
+            const wsUrl = "ws://localhost:8080"; // CHANGE THIS if your server is on a different address/port
+
             messageContainer.scrollTop = messageContainer.scrollHeight;
+
+            const conn = new WebSocket(wsUrl);
+
+            conn.onopen = function(e) {
+                console.log("Connection established successfully!");
+            };
+
+            conn.onclose = function(e) {
+                console.log("Connection closed.");
+            };
+
+            conn.onerror = function(e) {
+                console.error("WebSocket error:", e);
+            };
+
+            conn.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+
+                if (data.order_id == orderId && data.sender_id != senderId) {
+                    const messageHTML = `
+                        <div class="flex justify-start">
+                            <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-gray-200 text-gray-800">
+                                <p class="text-sm">${escapeHTML(data.message)}</p>
+                                <p class="text-xs mt-1 opacity-75 text-right">${new Date(data.sent_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                            </div>
+                        </div>`;
+                    messageContainer.insertAdjacentHTML('beforeend', messageHTML);
+                    messageContainer.scrollTop = messageContainer.scrollHeight;
+                }
+            };
 
             messageForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                const formData = new FormData(this);
-                if (messageInput.value.trim() === '') return;
+                const messageText = messageInput.value.trim();
 
-                fetch('send_message.php', { method: 'POST', body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        const messageHTML = `<div class="flex justify-end"><div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-orange-500 text-white"><p class="text-sm">${data.message.text}</p><p class="text-xs mt-1 opacity-75 text-right">${data.message.time}</p></div></div>`;
-                        messageContainer.insertAdjacentHTML('beforeend', messageHTML);
-                        messageContainer.scrollTop = messageContainer.scrollHeight;
-                        messageForm.reset();
-                    } else { alert("Error: " + data.message); }
-                });
+                if (messageText === '') return;
+
+                const data = {
+                    message: messageText,
+                    order_id: orderId,
+                    sender_id: senderId,
+                    receiver_id: receiverId
+                };
+
+                conn.send(JSON.stringify(data));
+
+                const sentMessageHTML = `
+                    <div class="flex justify-end">
+                        <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-orange-500 text-white">
+                            <p class="text-sm">${escapeHTML(messageText)}</p>
+                            <p class="text-xs mt-1 opacity-75 text-right">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                        </div>
+                    </div>`;
+                messageContainer.insertAdjacentHTML('beforeend', sentMessageHTML);
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+
+                messageForm.reset();
+                messageInput.focus();
             });
+
+            function escapeHTML(str) {
+                var p = document.createElement('p');
+                p.appendChild(document.createTextNode(str));
+                return p.innerHTML;
+            }
         });
     </script>
 </body>

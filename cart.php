@@ -15,6 +15,7 @@ $customer_id = $_SESSION['id'];
 $cart_items = [];
 $subtotal = 0;
 
+// Fetch all cart items for the customer
 $sql = "
     SELECT 
         c.id as cart_id, c.quantity,
@@ -23,18 +24,22 @@ $sql = "
     FROM cart_items c
     JOIN menu_items mi ON c.item_id = mi.id
     JOIN restaurants r ON mi.restaurant_id = r.id
-    WHERE c.customer_id = ?";
+    WHERE c.customer_id = ?
+    ORDER BY r.name ASC, mi.name ASC";
 
 if ($stmt = mysqli_prepare($link, $sql)) {
     mysqli_stmt_bind_param($stmt, "i", $customer_id);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
-    while($row = mysqli_fetch_assoc($result)) {
-        $cart_items[] = $row;
-        $subtotal += $row['price'] * $row['quantity'];
-    }
+    $cart_items = mysqli_fetch_all($result, MYSQLI_ASSOC);
     mysqli_stmt_close($stmt);
 }
+
+// Calculate subtotal
+foreach ($cart_items as $item) {
+    $subtotal += $item['price'] * $item['quantity'];
+}
+
 mysqli_close($link);
 $active_page = 'cart';
 ?>
@@ -69,20 +74,17 @@ $active_page = 'cart';
                         <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-md space-y-4">
                             <h2 class="text-xl font-bold text-gray-800 border-b pb-4">Order Summary</h2>
                             <?php foreach($cart_items as $item): ?>
-                            <div class="flex items-center space-x-4 py-4 border-b last:border-b-0" data-cart-id="<?php echo $item['cart_id']; ?>">
-                                <img src="<?php echo htmlspecialchars($item['image_url'] ?? 'https://placehold.co/100x100/F0F0F0/333?text=Dish'); ?>" class="w-20 h-20 rounded-lg object-cover">
+                            <div class="cart-item-row flex items-center space-x-4 py-2 border-b last:border-b-0" data-cart-id="<?php echo $item['cart_id']; ?>">
+                                <img src="<?php echo htmlspecialchars($item['image_url'] ?? 'https://placehold.co/100x100/F0F0F0/333?text=Dish'); ?>" class="w-16 h-16 rounded-lg object-cover">
                                 <div class="flex-1">
-                                    <p class="font-bold text-lg"><?php echo htmlspecialchars($item['item_name']); ?></p>
+                                    <p class="font-bold"><?php echo htmlspecialchars($item['item_name']); ?></p>
                                     <p class="text-sm text-gray-500">from <?php echo htmlspecialchars($item['restaurant_name']); ?></p>
-                                    <p class="font-semibold text-orange-600">₱<?php echo number_format($item['price'], 2); ?></p>
+                                    <p class="font-semibold text-orange-600 text-sm">₱<?php echo number_format($item['price'], 2); ?></p>
                                 </div>
                                 <div class="flex items-center space-x-3">
-                                    <button class="quantity-btn p-1 rounded-full bg-gray-200 hover:bg-gray-300" data-action="decrease">-</button>
-                                    <span class="font-bold w-8 text-center quantity-display"><?php echo $item['quantity']; ?></span>
-                                    <button class="quantity-btn p-1 rounded-full bg-gray-200 hover:bg-gray-300" data-action="increase">+</button>
+                                    <span class="font-bold w-8 text-center quantity-display">x <?php echo $item['quantity']; ?></span>
                                 </div>
                                 <p class="font-bold w-24 text-right item-total">₱<?php echo number_format($item['price'] * $item['quantity'], 2); ?></p>
-                                <button class="remove-item-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
                             </div>
                             <?php endforeach; ?>
                         </div>

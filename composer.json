@@ -1,0 +1,21 @@
+{
+    "name": "foodie/ratchet-websockets",
+    "description": "A PHP project using WebSockets with Ratchet.",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Joelo Laberinto",
+            "email": "joelolaberinto@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "cboden/ratchet": "^0.4.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "YourApp\\": "food_delivery_app"
+        }
+    }
+}
