@@ -71,11 +71,25 @@ CREATE TABLE `order_items` (
   `item_id` INT NOT NULL,
   `quantity` INT NOT NULL DEFAULT 1,
   `price_per_item` DECIMAL(10, 2) NOT NULL, -- Storing price at time of order
+  `is_prepared` BOOLEAN NOT NULL DEFAULT FALSE,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`item_id`) REFERENCES `menu_items`(`id`) ON DELETE CASCADE
 );
 
+CREATE TABLE `messages` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `order_id` INT NOT NULL,
+  `sender_id` INT NOT NULL,
+  `receiver_id` INT NOT NULL,
+  `message` TEXT NOT NULL,
+  `is_read` BOOLEAN NOT NULL DEFAULT FALSE,
+  `sent_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`sender_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`receiver_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+);
 
 --
 -- Table structure for table `reviews`

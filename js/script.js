@@ -83,6 +83,128 @@ function handleRestaurantFavorite(button) {
 }
 
 
+        // --- STORE ORDERS PAGE ---
+
+
+function initializeStoreOrdersPage() {
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+    
+    // Tab switching logic
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => { 
+                t.classList.remove('text-orange-600', 'border-orange-500'); 
+                t.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300'); 
+            });
+            tab.classList.add('text-orange-600', 'border-orange-500');
+            tab.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+            contents.forEach(content => content.classList.add('hidden'));
+            document.getElementById(tab.dataset.target)?.classList.remove('hidden');
+        });
+    });
+
+    // Helper to send order updates to the backend
+    function handleOrderAction(orderId, action) {
+        return fetch('manage_order.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `order_id=${orderId}&action=${action}`
+        }).then(response => response.json());
+    }
+
+    // Helper to update the number badge in a tab
+    function updateTabCount(tabId, change) {
+        const countSpan = document.getElementById(tabId);
+        if (countSpan) {
+            const currentCount = parseInt(countSpan.textContent) || 0;
+            countSpan.textContent = Math.max(0, currentCount + change);
+        }
+    }
+
+    // Helper to create the HTML for a new "Active" order card
+    function createActiveOrderCardHTML(orderData) {
+        return `
+            <div class="order-card bg-white p-4 rounded-lg shadow-md" data-order-id="${orderData.id}" data-order-data='${JSON.stringify(orderData)}'>
+                <div class="flex justify-between items-center">
+                    <p class="font-bold">Order #${orderData.id}</p>
+                    <p class="status-badge text-sm font-semibold text-blue-800">Preparing</p>
+                </div>
+                <p class="text-sm text-gray-600">Customer: ${orderData.customer_name}</p>
+                <p class="text-sm text-gray-600 mt-1">Payment: <span class="font-medium text-gray-800">${orderData.payment_method.toUpperCase()}</span></p>
+                <div class="mt-4 border-t pt-4 flex justify-between items-center">
+                    <button class="px-3 py-1 bg-gray-200 text-gray-800 text-sm rounded-md hover:bg-gray-300">View Order</button>
+                    <div class="actions-container text-right">
+                        <p class="text-sm font-semibold text-gray-700 mb-2">Prepare and wait for the rider to pick-up</p>
+                        <button class="ready-btn px-3 py-1 bg-orange-500 text-white text-sm rounded-md hover:bg-orange-600">Ready for Delivery</button>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    // Main event listener for actions within the order tabs
+    document.body.addEventListener('click', function(e) {
+        const card = e.target.closest('.order-card');
+        if (!card) return;
+        const orderId = card.dataset.orderId;
+
+        // --- Handle Accept Button ---
+        if (e.target.classList.contains('accept-btn')) {
+            handleOrderAction(orderId, 'accept').then(data => {
+                if (data.status === 'success') {
+                    const orderData = JSON.parse(card.dataset.orderData);
+                    const pendingTab = document.getElementById('pending');
+                    const activeTab = document.getElementById('active');
+                    
+                    const newActiveCardHTML = createActiveOrderCardHTML(orderData);
+                    activeTab.querySelector('.no-orders-msg')?.remove();
+                    activeTab.insertAdjacentHTML('afterbegin', newActiveCardHTML);
+                    
+                    card.remove();
+
+                    updateTabCount('pending-count', -1);
+                    updateTabCount('active-count', 1);
+
+                    if (!pendingTab.querySelector('.order-card')) {
+                        pendingTab.innerHTML = `<p class="no-orders-msg text-gray-500 text-center py-8">No pending orders.</p>`;
+                    }
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            });
+        }
+
+        // --- Handle Reject Button ---
+        if (e.target.classList.contains('reject-btn')) {
+            if (!confirm('Are you sure you want to reject this order?')) return;
+            handleOrderAction(orderId, 'reject').then(data => {
+                if (data.status === 'success') {
+                    card.remove();
+                    updateTabCount('pending-count', -1);
+                } else { alert('Error: ' + data.message); }
+            });
+        }
+        
+        // --- Handle Ready for Delivery Button ---
+        if (e.target.classList.contains('ready-btn')) {
+             handleOrderAction(orderId, 'ready_for_delivery').then(data => {
+                if(data.status === 'success') {
+                    const statusText = card.querySelector('.status-badge');
+                    if(statusText) {
+                        statusText.textContent = 'Out for Delivery';
+                        statusText.classList.remove('text-blue-800');
+                        statusText.classList.add('text-purple-800');
+                    }
+                    const actionsContainer = card.querySelector('.actions-container');
+                    if(actionsContainer) {
+                        actionsContainer.innerHTML = `<p class="text-sm font-semibold text-purple-800">Waiting for rider</p>`;
+                    }
+                } else { alert('Error: ' + data.message); }
+            });
+        }
+    });
+}
+
 // --- Main Script Execution ---
 document.addEventListener('DOMContentLoaded', function() {
     createIcons();
@@ -102,6 +224,10 @@ document.addEventListener('DOMContentLoaded', function() {
             handleRestaurantFavorite(favoriteRestaurantBtn);
             return;
         }
+
+           if (document.getElementById('pending') && document.getElementById('active')) {
+        initializeStoreOrdersPage();
+    }
 
         const profileButton = document.getElementById('profile-button');
         const profileDropdown = document.getElementById('profile-dropdown');
@@ -182,4 +308,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
+
 });
