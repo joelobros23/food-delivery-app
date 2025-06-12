@@ -1,7 +1,9 @@
 <?php
 // store/orders.php - Handles PENDING orders
-require_once "../app_config.php";
 session_start();
+
+// FIX: Consistently include the main app config from the project root.
+require_once __DIR__ . "/../app_config.php";
 
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || $_SESSION["role"] !== 'store') {
     header("location: ../login.php");
@@ -35,6 +37,7 @@ if ($restaurant_id) {
     }
 }
 $active_tab = 'pending';
+$active_page = 'orders'; // Ensure the sidebar knows which page is active
 ?>
 <!DOCTYPE html>
 <html lang="en">

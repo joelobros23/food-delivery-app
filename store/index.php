@@ -1,13 +1,19 @@
 <?php
 // store/index.php
 session_start();
+
+// FIX: Consistently include the main app config from the project root.
+require_once __DIR__ . "/../app_config.php";
+
 // Security check: ensure user is logged in and is a store owner
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || $_SESSION["role"] !== 'store') {
     header("location: ../login.php");
     exit;
 }
 
-require_once "../db_connection/config.php";
+$link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+if ($link === false) { die("DB Connection Error"); }
+
 
 $store_owner_id = $_SESSION['id'];
 $restaurant_id = null;
@@ -31,8 +37,6 @@ $stats = ['total_reviews' => 0, 'total_orders' => 0, 'pending_orders' => 0];
 $recent_orders = [];
 
 if ($restaurant_id) {
-    // --- CORRECTED: Fetch statistics for reviews, total orders, and pending orders ---
-    
     // Fetch order statistics
     $sql_order_stats = "
         SELECT 
@@ -107,7 +111,6 @@ $active_page = 'dashboard';
                 <h1 class="text-3xl font-bold text-gray-800 mb-6">Dashboard</h1>
                 <!-- Stats Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                    <!-- CORRECTED: Changed to "Total Reviews" -->
                     <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between">
                         <div>
                             <p class="text-sm font-medium text-gray-500">Total Reviews</p>

@@ -6,19 +6,24 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || $_SESSION
     exit;
 }
 
-// Check if item details are provided
 if (!isset($_GET["item_id"]) || !isset($_GET["restaurant_id"])) {
     header("location: customer_dashboard.php");
     exit;
 }
 
-require_once "db_connection/config.php";
+require_once "app_config.php";
 
 $item_id = trim($_GET["item_id"]);
 $restaurant_id = trim($_GET["restaurant_id"]);
 $customer_id = $_SESSION['id'];
 $item_details = null;
 $user_address = '';
+$order_success = false;
+$new_order_id = null; // Variable to hold the new order ID for JavaScript
+
+$link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+if ($link === false) { die("DB Connection Error"); }
+
 
 // Fetch item details
 $sql_item = "SELECT name, price FROM menu_items WHERE id = ?";
@@ -48,42 +53,35 @@ if (is_null($item_details)) {
 
 // Handle order confirmation
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['confirm_order'])) {
-    $total_amount = $item_details['price']; // Assuming quantity of 1 for now
-    $delivery_address = $user_address; // Use user's saved address
-    $payment_method = 'cod'; // Cash on Delivery
+    $total_amount = $item_details['price'];
+    $delivery_address = $user_address;
+    $payment_method = 'cod';
 
-    // Start a transaction
     mysqli_begin_transaction($link);
     
     try {
-        // 1. Insert into 'orders' table
         $sql_order = "INSERT INTO orders (customer_id, restaurant_id, delivery_address, total_amount, status) VALUES (?, ?, ?, ?, 'pending')";
         if ($stmt_order = mysqli_prepare($link, $sql_order)) {
             mysqli_stmt_bind_param($stmt_order, "iisd", $customer_id, $restaurant_id, $delivery_address, $total_amount);
             mysqli_stmt_execute($stmt_order);
-            $order_id = mysqli_insert_id($link);
+            // FIX: Capture the new order ID
+            $new_order_id = mysqli_insert_id($link);
             mysqli_stmt_close($stmt_order);
         } else { throw new Exception("Error preparing order statement."); }
 
-        // 2. Insert into 'order_items' table
         $sql_order_item = "INSERT INTO order_items (order_id, item_id, quantity, price_per_item) VALUES (?, ?, 1, ?)";
         if ($stmt_order_item = mysqli_prepare($link, $sql_order_item)) {
-            mysqli_stmt_bind_param($stmt_order_item, "iid", $order_id, $item_id, $item_details['price']);
+            mysqli_stmt_bind_param($stmt_order_item, "iid", $new_order_id, $item_id, $item_details['price']);
             mysqli_stmt_execute($stmt_order_item);
             mysqli_stmt_close($stmt_order_item);
         } else { throw new Exception("Error preparing order item statement."); }
 
-        // If all queries were successful, commit the transaction
         mysqli_commit($link);
         
-        // Redirect to a success page or the orders page
-        header("location: orders.php?purchase=success");
-        exit;
+        $order_success = true;
 
     } catch (Exception $e) {
-        // An error occurred, roll back the transaction
         mysqli_rollback($link);
-        // Handle error, e.g., show an error message
         echo "Order failed. Please try again. Error: " . $e->getMessage();
     }
 }
@@ -145,5 +143,49 @@ $active_page = '';
         </div>
     </div>
     <script src="js/script.js"></script>
+    
+    <!-- Real-time notification script -->
+    <script>
+        <?php if ($order_success): ?>
+        
+        // FIX: The function now correctly accepts both the storeId and the new orderId
+        function sendNewOrderNotification(storeId, orderId) {
+            if (!storeId || !orderId) {
+                console.error("Cannot send notification: Store ID or Order ID is missing.");
+                window.location.href = 'orders.php?purchase=success';
+                return;
+            }
+
+            const wsUrl = "ws://localhost:8080";
+            const notificationSocket = new WebSocket(wsUrl);
+
+            notificationSocket.onopen = function() {
+                const notificationPayload = {
+                    type: 'new_order_placed',
+                    store_id: parseInt(storeId),
+                    order_id: parseInt(orderId) // FIX: Include the new order ID in the payload
+                };
+                notificationSocket.send(JSON.stringify(notificationPayload));
+                
+                setTimeout(function() {
+                    notificationSocket.close();
+                    window.location.href = 'orders.php?purchase=success';
+                }, 500);
+            };
+
+            notificationSocket.onerror = function(error) {
+                console.error("WebSocket error when sending notification:", error);
+                window.location.href = 'orders.php?purchase=success';
+            };
+        }
+
+        // FIX: Call the function with both required IDs, which are passed from PHP.
+        sendNewOrderNotification(
+            <?php echo json_encode($restaurant_id); ?>, 
+            <?php echo json_encode($new_order_id); ?>
+        );
+        
+        <?php endif; ?>
+    </script>
 </body>
 </html>

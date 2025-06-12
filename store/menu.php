@@ -6,7 +6,12 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || $_SESSION
     exit;
 }
 
-require_once "../db_connection/config.php";
+// FIX: Use the correct path for the main app config file.
+require_once __DIR__ . "/../app_config.php";
+
+// FIX: Establish DB connection after including the config.
+$link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+if ($link === false) { die("DB Connection Error"); }
 
 $store_owner_id = $_SESSION['id'];
 $restaurant_id = null;
@@ -46,7 +51,7 @@ $active_page = 'menu';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Menu Items - </title>
+    <title>Menu Items - <?php echo SITE_NAME; ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
