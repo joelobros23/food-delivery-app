@@ -1,14 +1,14 @@
 <?php
-// store/messages.php
-require_once "../app_config.php";
+// messages.php (Customer View)
+require_once "app_config.php";
 session_start();
 
-if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || $_SESSION["role"] !== 'store') {
-    header("location: ../login.php");
+if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || $_SESSION["role"] !== 'customer') {
+    header("location: login.php");
     exit;
 }
 if (!isset($_GET['order_id']) || !isset($_GET['receiver_id'])) {
-    header("location: index.php");
+    header("location: inbox.php");
     exit;
 }
 
@@ -19,26 +19,25 @@ $order_id = trim($_GET['order_id']);
 $sender_id = $_SESSION['id'];
 $receiver_id = trim($_GET['receiver_id']);
 $messages = [];
-$customer_name = "Customer";
+$store_name = "Store";
 $order_summary = null;
 
-// Fetch customer name for the header
-$sql_customer = "SELECT full_name FROM users WHERE id = ?";
-if($stmt_customer = mysqli_prepare($link, $sql_customer)) {
-    mysqli_stmt_bind_param($stmt_customer, "i", $receiver_id);
-    mysqli_stmt_execute($stmt_customer);
-    mysqli_stmt_bind_result($stmt_customer, $c_name);
-    if(mysqli_stmt_fetch($stmt_customer)) { $customer_name = $c_name; }
-    mysqli_stmt_close($stmt_customer);
+// Fetch store name for the header
+$sql_store = "SELECT name FROM restaurants WHERE user_id = ?";
+if($stmt_store = mysqli_prepare($link, $sql_store)) {
+    mysqli_stmt_bind_param($stmt_store, "i", $receiver_id);
+    mysqli_stmt_execute($stmt_store);
+    mysqli_stmt_bind_result($stmt_store, $s_name);
+    if(mysqli_stmt_fetch($stmt_store)) { $store_name = $s_name; }
+    mysqli_stmt_close($stmt_store);
 }
 
-// CORRECTED: Fetch 'id' along with other details to prevent null access errors.
+// Fetch a quick summary of the order to display
 $sql_summary = "SELECT id, order_date, total_amount FROM orders WHERE id = ?";
 if($stmt_summary = mysqli_prepare($link, $sql_summary)){
     mysqli_stmt_bind_param($stmt_summary, "i", $order_id);
     mysqli_stmt_execute($stmt_summary);
-    $result_summary = mysqli_stmt_get_result($stmt_summary);
-    $order_summary = mysqli_fetch_assoc($result_summary); // Can still be null if order not found
+    $order_summary = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_summary));
     mysqli_stmt_close($stmt_summary);
 }
 
@@ -53,30 +52,38 @@ if ($stmt_messages = mysqli_prepare($link, $sql_messages)) {
     mysqli_stmt_close($stmt_messages);
 }
 
+// Mark messages as read
+$sql_mark_read = "UPDATE messages SET is_read = 1 WHERE order_id = ? AND receiver_id = ?";
+if($stmt_read = mysqli_prepare($link, $sql_mark_read)) {
+    mysqli_stmt_bind_param($stmt_read, "ii", $order_id, $sender_id);
+    mysqli_stmt_execute($stmt_read);
+    mysqli_stmt_close($stmt_read);
+}
+
 mysqli_close($link);
-$active_page = 'orders';
+$active_page = 'inbox';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Message with <?php echo htmlspecialchars($customer_name); ?> - <?php echo SITE_NAME; ?></title>
+    <title>Message with <?php echo htmlspecialchars($store_name); ?> - <?php echo SITE_NAME; ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-gray-100 font-sans">
     <div class="flex h-screen bg-gray-100">
-        <?php require_once 'partials/sidebar.php'; ?>
+        <?php require_once 'cdashboard_partial/sidebar.php'; ?>
         <div class="flex flex-col flex-1 h-full">
-            <?php require_once 'partials/header.php'; ?>
+            <?php require_once 'cdashboard_partial/header.php'; ?>
             <div class="flex-1 flex flex-col p-4 md:p-6 overflow-hidden">
-                <a href="view_order.php?id=<?php echo $order_id; ?>" class="flex items-center text-gray-600 hover:text-orange-600 mb-4 font-medium"><i data-lucide="arrow-left" class="w-5 h-5 mr-2"></i>Back to Order Details</a>
+                <a href="inbox.php" class="flex items-center text-gray-600 hover:text-orange-600 mb-4 font-medium"><i data-lucide="arrow-left" class="w-5 h-5 mr-2"></i>Back to Inbox</a>
                 <div class="bg-white rounded-lg shadow-lg flex flex-col flex-1">
                     <div class="p-4 border-b">
-                        <h1 class="text-xl font-bold text-gray-900">Conversation with <?php echo htmlspecialchars($customer_name); ?></h1>
+                        <h1 class="text-xl font-bold text-gray-900"><?php echo htmlspecialchars($store_name); ?></h1>
                         <p class="text-sm text-gray-500">Regarding Order #<?php echo htmlspecialchars($order_id); ?></p>
                     </div>
                     <div id="message-container" class="flex-1 p-6 space-y-4 overflow-y-auto">
@@ -85,9 +92,8 @@ $active_page = 'orders';
                             <p class="font-semibold">Order #<?php echo htmlspecialchars($order_summary['id'] ?? $order_id); ?></p>
                             <p class="text-xs text-gray-500">Placed: <?php echo date("M d, Y", strtotime($order_summary['order_date'] ?? 'now')); ?></p>
                             <div class="mt-2 flex justify-between items-center">
-                                <!-- CORRECTED: Use null coalescing operator to prevent errors if $order_summary is null -->
                                 <span class="font-bold text-lg">₱<?php echo number_format($order_summary['total_amount'] ?? 0, 2); ?></span>
-                                <a href="view_order.php?id=<?php echo $order_id; ?>" class="px-3 py-1 bg-white text-gray-800 text-sm rounded-md border hover:bg-gray-50">View Details</a>
+                                <a href="track_order.php?id=<?php echo $order_id; ?>" class="px-3 py-1 bg-white text-gray-800 text-sm rounded-md border hover:bg-gray-50">View Details</a>
                             </div>
                         </div>
                         
@@ -115,7 +121,7 @@ $active_page = 'orders';
             </div>
         </div>
     </div>
-    <script src="../js/script.js"></script>
+    <script src="js/script.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const messageContainer = document.getElementById('message-container');

@@ -126,7 +126,7 @@ $active_page = 'orders';
     </div>
     <script src="../js/script.js"></script>
     <script src="../js/store_view_order.js"></script>
-        <script>
+          <script>
         document.addEventListener('DOMContentLoaded', function() {
             const statusBadge = document.getElementById('order-status-badge');
             const sendToRiderContainer = document.getElementById('send-to-rider-container');

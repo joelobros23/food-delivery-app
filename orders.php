@@ -11,11 +11,22 @@ if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || $_SESSION[
 $link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if($link === false) { die("DB Connection Error"); }
 
-// Fetch current orders
-$current_orders_sql = "SELECT o.id, r.name as restaurant_name, r.banner_image_url, o.order_date, o.total_amount, o.status, o.payment_method FROM orders o JOIN restaurants r ON o.restaurant_id = r.id WHERE o.customer_id = ? AND o.status IN ('pending', 'preparing', 'out_for_delivery') ORDER BY o.order_date DESC";
+$customer_id = $_SESSION["id"];
+
+// Fetch current orders and check for unread messages
+$current_orders_sql = "
+    SELECT 
+        o.id, r.name as restaurant_name, r.banner_image_url, o.order_date, o.total_amount, o.status, o.payment_method,
+        r.user_id as store_owner_id,
+        (SELECT COUNT(*) FROM messages m WHERE m.order_id = o.id AND m.receiver_id = ? AND m.is_read = 0) as unread_messages
+    FROM orders o 
+    JOIN restaurants r ON o.restaurant_id = r.id 
+    WHERE o.customer_id = ? AND o.status IN ('pending', 'preparing', 'out_for_delivery') 
+    ORDER BY o.order_date DESC";
+
 $current_orders = [];
 if($stmt_current = mysqli_prepare($link, $current_orders_sql)){
-    mysqli_stmt_bind_param($stmt_current, "i", $_SESSION["id"]);
+    mysqli_stmt_bind_param($stmt_current, "ii", $customer_id, $customer_id);
     mysqli_stmt_execute($stmt_current);
     $current_orders = mysqli_fetch_all(mysqli_stmt_get_result($stmt_current), MYSQLI_ASSOC);
     mysqli_stmt_close($stmt_current);
@@ -25,7 +36,7 @@ if($stmt_current = mysqli_prepare($link, $current_orders_sql)){
 $history_orders_sql = "SELECT o.id, r.name as restaurant_name, o.order_date, o.total_amount, o.status, o.payment_method FROM orders o JOIN restaurants r ON o.restaurant_id = r.id WHERE o.customer_id = ? AND o.status IN ('delivered', 'cancelled') ORDER BY o.order_date DESC";
 $history_orders = [];
 if($stmt_history = mysqli_prepare($link, $history_orders_sql)){
-    mysqli_stmt_bind_param($stmt_history, "i", $_SESSION["id"]);
+    mysqli_stmt_bind_param($stmt_history, "i", $customer_id);
     mysqli_stmt_execute($stmt_history);
     $history_orders = mysqli_fetch_all(mysqli_stmt_get_result($stmt_history), MYSQLI_ASSOC);
     mysqli_stmt_close($stmt_history);
@@ -57,17 +68,37 @@ $active_page = 'orders';
                     <?php if (!empty($current_orders)): ?>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <?php foreach($current_orders as $order): ?>
-                            <div class="bg-white p-5 rounded-lg shadow-md flex space-x-4 items-center">
-                                <img src="<?php echo htmlspecialchars($order['banner_image_url'] ?? 'https://placehold.co/100x100/F0F0F0/333?text=Restaurant'); ?>" alt="<?php echo htmlspecialchars($order['restaurant_name']); ?>" class="w-20 h-20 rounded-lg object-cover">
-                                <div class="flex-1">
-                                    <p class="font-bold text-lg text-gray-800"><?php echo htmlspecialchars($order['restaurant_name']); ?></p>
-                                    <p class="text-sm text-gray-500">Payment: <span class="font-medium text-gray-700"><?php echo strtoupper($order['payment_method']); ?></span></p>
-                                    <p class="text-sm font-semibold text-gray-700 mt-1">Total: ₱<?php echo number_format($order['total_amount'], 2); ?></p>
+                            <div class="bg-white p-5 rounded-lg shadow-md">
+                                <div class="flex space-x-4 items-start">
+                                    <img src="<?php echo htmlspecialchars($order['banner_image_url'] ?? 'https://placehold.co/100x100/F0F0F0/333?text=Restaurant'); ?>" alt="<?php echo htmlspecialchars($order['restaurant_name']); ?>" class="w-20 h-20 rounded-lg object-cover">
+                                    <div class="flex-1">
+                                        <p class="font-bold text-lg text-gray-800"><?php echo htmlspecialchars($order['restaurant_name']); ?></p>
+                                        <p class="text-sm text-gray-500">Payment: <span class="font-medium text-gray-700"><?php echo strtoupper($order['payment_method']); ?></span></p>
+                                        <p class="text-sm font-semibold text-gray-700 mt-1">Total: ₱<?php echo number_format($order['total_amount'], 2); ?></p>
+                                    </div>
                                 </div>
-                                <div class="text-right">
-                                     <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 mb-3"><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $order['status']))); ?></span>
-                                    <a href="track_order.php?id=<?php echo $order['id']; ?>" class="block w-full text-center px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700">View Status</a>
+                                <div class="mt-4 pt-4 border-t flex justify-between items-center">
+                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full
+                                        <?php 
+                                            switch($order['status']) {
+                                                case 'pending': echo 'bg-yellow-100 text-yellow-800'; break;
+                                                case 'preparing': echo 'bg-blue-100 text-blue-800'; break;
+                                                case 'out_for_delivery': echo 'bg-purple-100 text-purple-800'; break;
+                                            }
+                                        ?>
+                                    ">
+                                        <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $order['status']))); ?>
+                                    </span>
+                                    <a href="track_order.php?id=<?php echo $order['id']; ?>" class="block px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700">View Status</a>
                                 </div>
+                                <?php if ($order['unread_messages'] > 0): ?>
+                                <div class="mt-4 pt-4 border-t border-dashed">
+                                    <a href="messages.php?order_id=<?php echo $order['id']; ?>&receiver_id=<?php echo $order['store_owner_id']; ?>" class="flex items-center text-sm font-semibold text-red-600 animate-pulse">
+                                        <i data-lucide="message-circle" class="w-4 h-4 mr-2"></i>
+                                        Store has a new message - Check Inbox
+                                    </a>
+                                </div>
+                                <?php endif; ?>
                             </div>
                             <?php endforeach; ?>
                         </div>
