@@ -20,7 +20,7 @@ if (!isset($_POST['item_name']) || empty(trim($_POST['item_name']))) {
 
 $item_name = trim($_POST['item_name']);
 $existing_description = isset($_POST['existing_description']) ? trim($_POST['existing_description']) : '';
-$api_key = 'AIzaSyDaNS63l9P-ASSZ3ky0oqBVAo0KvaqWlyI'; 
+$api_key = 'AIzaSyAhz-vMTfd4NjDreB-qz0mjGVBVYvNon00'; 
 $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . $api_key;
 
 // --- CORRECTED: More direct and explicit prompts for the AI ---

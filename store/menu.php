@@ -140,7 +140,14 @@ $active_page = 'menu';
                         <input type="text" name="name" id="item-name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
                     </div>
                     <div>
-                        <label for="item-description" class="block text-sm font-medium text-gray-700">Description</label>
+                        <!-- NEW: Added AI Button next to the label -->
+                        <div class="flex justify-between items-center">
+                            <label for="item-description" class="block text-sm font-medium text-gray-700">Description</label>
+                            <button type="button" id="write-with-ai-btn" class="text-xs text-orange-600 font-semibold hover:underline flex items-center">
+                                <i data-lucide="sparkles" class="w-3 h-3 mr-1"></i>
+                                <span id="ai-button-text">Write with AI</span>
+                            </button>
+                        </div>
                         <textarea name="description" id="item-description" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500"></textarea>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
@@ -166,15 +173,61 @@ $active_page = 'menu';
         </div>
     </div>
     <script src="../js/script.js"></script>
-<script src="../js/store_menu.js"></script>
+    <script src="../js/store_menu.js"></script>
     <script>
-        // Add this script to handle the image preview
+        // Image preview script
         document.getElementById('item-image').addEventListener('change', function(event) {
             const preview = document.getElementById('image-preview');
             const file = event.target.files[0];
             if (file) {
                 preview.src = URL.createObjectURL(file);
             }
+        });
+
+        // --- NEW: AI Description Generator Script ---
+        document.addEventListener('DOMContentLoaded', function() {
+            const aiBtn = document.getElementById('write-with-ai-btn');
+            const aiBtnText = document.getElementById('ai-button-text');
+            const itemNameInput = document.getElementById('item-name');
+            const descriptionTextarea = document.getElementById('item-description');
+
+            aiBtn.addEventListener('click', function() {
+                const itemName = itemNameInput.value.trim();
+                const existingDesc = descriptionTextarea.value.trim();
+
+                if (!itemName) {
+                    alert('Please enter an item name first.');
+                    return;
+                }
+
+                aiBtn.disabled = true;
+                aiBtnText.textContent = 'Generating...';
+
+                const formData = new FormData();
+                formData.append('item_name', itemName);
+                formData.append('existing_description', existingDesc);
+
+                fetch('generate_description.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        descriptionTextarea.value = data.description;
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while generating the description.');
+                })
+                .finally(() => {
+                    aiBtn.disabled = false;
+                    aiBtnText.textContent = 'Write with AI';
+                });
+            });
         });
     </script>
 </body>

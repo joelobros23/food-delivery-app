@@ -85,50 +85,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }).catch(err => alert('An error occurred.'));
     });
     
-    // --- Write with AI Button Logic ---
-    writeWithAiBtn.addEventListener('click', () => {
-        const itemNameInput = document.getElementById('item-name');
-        const descriptionTextarea = document.getElementById('item-description');
-        
-        const itemName = itemNameInput.value.trim();
-        const existingDescription = descriptionTextarea.value.trim();
-
-        if (!itemName) {
-            alert('Please enter an item name first.');
-            itemNameInput.focus();
-            return;
-        }
-
-        const originalBtnText = writeWithAiBtn.innerHTML;
-        writeWithAiBtn.innerHTML = `<i data-lucide="loader" class="w-3 h-3 mr-1 animate-spin"></i>Generating...`;
-        writeWithAiBtn.disabled = true;
-        lucide.createIcons();
-
-        const formData = new FormData();
-        formData.append('item_name', itemName);
-        
-        // UPDATED: Pass the existing description to the backend
-        if (existingDescription) {
-            formData.append('existing_description', existingDescription);
-        }
-
-        fetch('../generate_description.php', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    descriptionTextarea.value = data.description;
-                } else {
-                    alert('AI could not generate a description: ' + (data.message || 'Unknown error'));
-                    console.error('AI Error Details:', data.details);
-                }
-            })
-            .catch(err => alert('An error occurred while contacting the AI.'))
-            .finally(() => {
-                writeWithAiBtn.innerHTML = originalBtnText;
-                writeWithAiBtn.disabled = false;
-                 lucide.createIcons();
-            });
-    });
 
     document.body.addEventListener('click', function(e){
         // Handle options menu toggle
