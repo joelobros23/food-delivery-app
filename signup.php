@@ -6,21 +6,34 @@ header("Pragma: no-cache");
 header("Expires: 0");
 session_start();
 
-if(isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true){
-    if ($_SESSION["role"] === 'customer') { header("location: customer_dashboard.php"); } 
-    elseif ($_SESSION["role"] === 'rider') { header("location: rider_dashboard.php"); } 
-    elseif ($_SESSION["role"] === 'store') { header("location: store/index.php"); } 
-    else { header("location: index.php"); }
-    exit;
+// FIX: This condition is now stricter. It only redirects if a user is logged in AND has a specific role.
+// This prevents redirect loops for users who are logged out or have an incomplete session.
+if(isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true && isset($_SESSION["role"])){
+    if ($_SESSION["role"] === 'customer') { 
+        header("location: customer_dashboard.php");
+        exit;
+    } elseif ($_SESSION["role"] === 'rider') { 
+        header("location: rider_dashboard.php");
+        exit;
+    } elseif ($_SESSION["role"] === 'store') { 
+        header("location: store/index.php");
+        exit;
+    }
 }
 
-require_once "db_connection/config.php";
+// If the condition above is false (meaning you are not logged in), the script will continue
+// and display the HTML form below, as intended.
+
+require_once "app_config.php";
+
+$link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+if ($link === false) { die("DB Connection Error"); }
 
 $name = $email = $password = $confirm_password = $role = "";
 $name_err = $email_err = $password_err = $confirm_password_err = $role_err = "";
 
 if($_SERVER["REQUEST_METHOD"] == "POST"){
-    // --- Validation logic (as before) ---
+    // --- Validation logic ---
     if(empty(trim($_POST["name"]))){ $name_err = "Please enter your full name."; } else{ $name = trim($_POST["name"]); }
     if(empty(trim($_POST["email"]))){ $email_err = "Please enter an email."; } else { $sql = "SELECT id FROM users WHERE email = ?"; if($stmt = mysqli_prepare($link, $sql)){ mysqli_stmt_bind_param($stmt, "s", $param_email); $param_email = trim($_POST["email"]); if(mysqli_stmt_execute($stmt)){ mysqli_stmt_store_result($stmt); if(mysqli_stmt_num_rows($stmt) == 1){ $email_err = "This email is already taken."; } else{ $email = trim($_POST["email"]); } } else{ echo "Oops! Something went wrong."; } mysqli_stmt_close($stmt); } }
     if(empty(trim($_POST["password"]))){ $password_err = "Please enter a password."; } elseif(strlen(trim($_POST["password"])) < 6){ $password_err = "Password must have at least 6 characters."; } else{ $password = trim($_POST["password"]); }
@@ -37,7 +50,6 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                 $user_id = mysqli_insert_id($link);
                 $_SESSION["loggedin"] = true; $_SESSION["id"] = $user_id; $_SESSION["name"] = $name; $_SESSION["email"] = $email; $_SESSION["role"] = $role;                            
                 
-                // CORRECTED: Redirect logic for store owners
                 if ($role === 'store') {
                     header("location: create_store.php");
                 } elseif ($role === 'customer') {

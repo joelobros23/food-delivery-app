@@ -11,6 +11,12 @@ CREATE TABLE `restaurants` (
   `name` VARCHAR(255) NOT NULL,
   `cuisine` VARCHAR(100) DEFAULT NULL, -- e.g., 'Filipino', 'Italian', 'Japanese'
   `address` VARCHAR(255) NOT NULL,
+  `city` VARCHAR(255) NULL DEFAULT NULL,
+  `business_type` VARCHAR(100) NULL DEFAULT NULL,
+  `details` TEXT NULL DEFAULT NULL,
+  `business_permit_url` VARCHAR(255) NULL DEFAULT NULL,
+  `latitude` DECIMAL(10, 8) NULL DEFAULT NULL,
+  `longitude` DECIMAL(11, 8) NULL DEFAULT NULL,
   `banner_image_url` VARCHAR(255) DEFAULT NULL,
   `operating_hours` VARCHAR(100) DEFAULT NULL, -- e.g., '9:00 AM - 10:00 PM'
   `is_open` BOOLEAN NOT NULL DEFAULT TRUE,
@@ -18,6 +24,18 @@ CREATE TABLE `restaurants` (
   PRIMARY KEY (`id`),
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 );
+
+
+CREATE TABLE `cart_items` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `customer_id` INT(11) NOT NULL,
+  `item_id` INT(11) NOT NULL,
+  `quantity` INT(11) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`item_id`) REFERENCES `menu_items`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
 --
@@ -113,17 +131,27 @@ CREATE TABLE `reviews` (
 
 
 --
--- Table structure for table `favorites`
+-- Table structure for table `favorites`  
 -- Allows users to save their favorite restaurants for easy access.
 --
-CREATE TABLE `favorites` (
+CREATE TABLE `favorite_restaurants` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `customer_id` INT NOT NULL,
   `restaurant_id` INT NOT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `customer_restaurant_favorite` (`customer_id`, `restaurant_id`), -- Prevents duplicate entries
+  UNIQUE KEY `customer_restaurant_favorite` (`customer_id`, `restaurant_id`),
   FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants`(`id`) ON DELETE CASCADE
 );
 
+-- Create the table to store favorited menu items
+CREATE TABLE `favorite_items` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `customer_id` INT(11) NOT NULL,
+  `menu_item_id` INT(11) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`menu_item_id`) REFERENCES `menu_items`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

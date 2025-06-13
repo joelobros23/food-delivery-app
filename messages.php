@@ -17,18 +17,22 @@ if ($link === false) { die("DB Connection Error"); }
 
 $order_id = trim($_GET['order_id']);
 $sender_id = $_SESSION['id'];
-$receiver_id = trim($_GET['receiver_id']);
+$receiver_id = trim($_GET['receiver_id']); // This is the store owner's user_id
 $messages = [];
 $store_name = "Store";
+$store_restaurant_id = null; // To store the restaurant's actual ID
 $order_summary = null;
 
-// Fetch store name for the header
-$sql_store = "SELECT name FROM restaurants WHERE user_id = ?";
+// Fetch store name and ID for the header link
+$sql_store = "SELECT id, name FROM restaurants WHERE user_id = ?";
 if($stmt_store = mysqli_prepare($link, $sql_store)) {
     mysqli_stmt_bind_param($stmt_store, "i", $receiver_id);
     if(mysqli_stmt_execute($stmt_store)) {
-        mysqli_stmt_bind_result($stmt_store, $s_name);
-        if(mysqli_stmt_fetch($stmt_store)) { $store_name = $s_name; }
+        mysqli_stmt_bind_result($stmt_store, $r_id, $s_name);
+        if(mysqli_stmt_fetch($stmt_store)) {
+            $store_restaurant_id = $r_id;
+            $store_name = $s_name;
+        }
     }
     mysqli_stmt_close($stmt_store);
 }
@@ -82,15 +86,14 @@ $active_page = 'inbox';
         <?php require_once 'cdashboard_partial/sidebar.php'; ?>
         <div class="flex flex-col flex-1 h-full">
             <?php require_once 'cdashboard_partial/header.php'; ?>
-            <!-- This container now has min-h-0 to fix the flexbox overflow issue -->
             <div class="flex-1 flex flex-col p-4 md:p-6 overflow-hidden min-h-0">
                 <a href="inbox.php" class="flex items-center text-gray-600 hover:text-orange-600 mb-4 font-medium"><i data-lucide="arrow-left" class="w-5 h-5 mr-2"></i>Back to Inbox</a>
-                <!-- The main chat card also gets min-h-0 -->
                 <div class="bg-white rounded-lg shadow-lg flex flex-col flex-1 min-h-0">
-                    <div class="p-4 border-b">
+                    <!-- The header is now a clickable link -->
+                    <a href="view_restaurant.php?id=<?php echo $store_restaurant_id; ?>" class="p-4 border-b block hover:bg-gray-50">
                         <h1 class="text-xl font-bold text-gray-900"><?php echo htmlspecialchars($store_name); ?></h1>
                         <p class="text-sm text-gray-500">Regarding Order #<?php echo htmlspecialchars($order_id); ?></p>
-                    </div>
+                    </a>
                     <div id="message-container" class="flex-1 p-6 space-y-4 overflow-y-auto">
                         <!-- Order Summary -->
                         <div class="p-3 bg-gray-100 rounded-lg border border-gray-200"><p class="font-semibold">Order #<?php echo htmlspecialchars($order_summary['id'] ?? $order_id); ?></p><p class="text-xs text-gray-500">Placed: <?php echo date("M d, Y", strtotime($order_summary['order_date'] ?? 'now')); ?></p><div class="mt-2 flex justify-between items-center"><span class="font-bold text-lg">₱<?php echo number_format($order_summary['total_amount'] ?? 0, 2); ?></span><a href="track_order.php?id=<?php echo $order_id; ?>" class="px-3 py-1 bg-white text-gray-800 text-sm rounded-md border hover:bg-gray-50">View Details</a></div></div>
@@ -119,42 +122,26 @@ $active_page = 'inbox';
     <script src="js/script.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // --- WebSocket Implementation ---
             const messageContainer = document.getElementById('message-container');
             const messageForm = document.getElementById('message-form');
             const messageInput = document.getElementById('message-input');
             
-            // --- Key Variables from PHP ---
             const orderId = "<?php echo $order_id; ?>";
-            const senderId = <?php echo $sender_id; ?>; // Use integer for comparison
+            const senderId = <?php echo $sender_id; ?>;
             const receiverId = <?php echo $receiver_id; ?>;
-            const wsUrl = "ws://localhost:8080"; // CHANGE THIS if your server is on a different address/port
+            const wsUrl = "ws://localhost:8080";
 
-            // --- Scroll to the bottom of the chat on page load ---
             messageContainer.scrollTop = messageContainer.scrollHeight;
             
-            // --- Establish WebSocket Connection ---
             const conn = new WebSocket(wsUrl);
 
-            conn.onopen = function(e) {
-                console.log("Connection established successfully!");
-            };
+            conn.onopen = function(e) { console.log("Connection established successfully!"); };
+            conn.onclose = function(e) { console.log("Connection closed."); };
+            conn.onerror = function(e) { console.error("WebSocket error:", e); };
 
-            conn.onclose = function(e) {
-                console.log("Connection closed.");
-                // Optionally, display a message to the user that they are offline
-            };
-
-            conn.onerror = function(e) {
-                console.error("WebSocket error:", e);
-                // Optionally, display an error message
-            };
-
-            // --- Handle Incoming Messages from Server ---
             conn.onmessage = function(e) {
                 const data = JSON.parse(e.data);
 
-                // Only append message if it's for the current order and not from the current user
                 if (data.order_id == orderId && data.sender_id != senderId) {
                     const messageHTML = `
                         <div class="flex justify-start">
@@ -168,16 +155,12 @@ $active_page = 'inbox';
                 }
             };
 
-            // --- Handle Sending a Message ---
             messageForm.addEventListener('submit', function(e) {
                 e.preventDefault();
                 const messageText = messageInput.value.trim();
 
-                if (messageText === '') {
-                    return; // Don't send empty messages
-                }
+                if (messageText === '') { return; }
 
-                // --- Prepare data packet to send to server ---
                 const data = {
                     message: messageText,
                     order_id: orderId,
@@ -185,10 +168,8 @@ $active_page = 'inbox';
                     receiver_id: receiverId
                 };
 
-                // --- Send data as a JSON string ---
                 conn.send(JSON.stringify(data));
 
-                // --- Immediately display the sent message in the UI ---
                 const sentMessageHTML = `
                     <div class="flex justify-end">
                         <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-orange-500 text-white">
@@ -198,13 +179,11 @@ $active_page = 'inbox';
                     </div>`;
                 messageContainer.insertAdjacentHTML('beforeend', sentMessageHTML);
                 messageContainer.scrollTop = messageContainer.scrollHeight;
-
-                // --- Reset the input field ---
+                
                 messageForm.reset();
                 messageInput.focus();
             });
 
-            // --- Utility function to prevent XSS ---
             function escapeHTML(str) {
                 var p = document.createElement('p');
                 p.appendChild(document.createTextNode(str));

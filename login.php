@@ -9,8 +9,8 @@ header("Expires: 0");
 // Initialize the session
 session_start();
  
-// Check if the user is already logged in, if yes then redirect them to their dashboard
-if(isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true){
+// FIX: Check if the user is logged in AND that the role is set before redirecting
+if(isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true && isset($_SESSION["role"])){
     if ($_SESSION["role"] === 'customer') {
         header("location: customer_dashboard.php");
     } elseif ($_SESSION["role"] === 'rider') {
@@ -22,7 +22,7 @@ if(isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true){
 }
  
 // Include config file
-require_once "db_connection/config.php";
+require_once "app_config.php";
  
 // Define variables and initialize with empty values
 $email = $password = "";
@@ -50,6 +50,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
         // Prepare a select statement
         $sql = "SELECT id, full_name, email, password, role FROM users WHERE email = ?";
         
+        $link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
         if($stmt = mysqli_prepare($link, $sql)){
             // Bind variables to the prepared statement as parameters
             mysqli_stmt_bind_param($stmt, "s", $param_email);
@@ -69,7 +70,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                     if(mysqli_stmt_fetch($stmt)){
                         if(password_verify($password, $hashed_password)){
                             // Password is correct, so start a new session
-                            session_start();
+                            // session_start(); // Already started at the top
                             
                             // Store data in session variables
                             $_SESSION["loggedin"] = true;
@@ -85,6 +86,9 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
                                 header("location: rider_dashboard.php");
                             } elseif ($role === 'store') {
                                 header("location: store/index.php");
+                            } else {
+                                // Default redirect if role is unknown
+                                header("location: index.php");
                             }
                         } else{
                             // Password is not valid
@@ -102,10 +106,8 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
             // Close statement
             mysqli_stmt_close($stmt);
         }
+        mysqli_close($link);
     }
-    
-    // Close connection
-    mysqli_close($link);
 }
 ?>
 <!DOCTYPE html>

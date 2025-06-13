@@ -6,28 +6,22 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || $_SESSION
     exit;
 }
 
-// FIX: Use the correct path for the main app config file.
 require_once __DIR__ . "/../app_config.php";
 
-// FIX: Establish DB connection after including the config.
 $link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if ($link === false) { die("DB Connection Error"); }
 
 $store_owner_id = $_SESSION['id'];
 $restaurant_id = null;
-$restaurant_name = "My Restaurant"; 
 $menu_items = [];
 
-// Fetch the restaurant ID and name
-$sql_resto_info = "SELECT id, name FROM restaurants WHERE user_id = ? LIMIT 1";
+// Fetch the restaurant ID
+$sql_resto_info = "SELECT id FROM restaurants WHERE user_id = ? LIMIT 1";
 if($stmt_resto = mysqli_prepare($link, $sql_resto_info)){
     mysqli_stmt_bind_param($stmt_resto, "i", $store_owner_id);
     mysqli_stmt_execute($stmt_resto);
-    mysqli_stmt_bind_result($stmt_resto, $r_id, $r_name);
-    if(mysqli_stmt_fetch($stmt_resto)){
-        $restaurant_id = $r_id;
-        $restaurant_name = $r_name;
-    }
+    mysqli_stmt_bind_result($stmt_resto, $r_id);
+    if(mysqli_stmt_fetch($stmt_resto)){ $restaurant_id = $r_id; }
     mysqli_stmt_close($stmt_resto);
 }
 
@@ -72,6 +66,7 @@ $active_page = 'menu';
                 
                 <div class="bg-white rounded-lg shadow-md overflow-x-auto">
                     <table class="min-w-full">
+                        <!-- Table Head -->
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
@@ -81,6 +76,7 @@ $active_page = 'menu';
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
+                        <!-- Table Body -->
                         <tbody class="bg-white divide-y divide-gray-200">
                             <?php if (empty($menu_items)): ?>
                                 <tr><td colspan="5" class="text-center py-10 text-gray-500">You haven't added any menu items yet.</td></tr>
@@ -89,7 +85,7 @@ $active_page = 'menu';
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center">
                                         <div class="flex-shrink-0 h-12 w-12">
-                                            <img class="item-image h-12 w-12 rounded-md object-cover" src="<?php echo htmlspecialchars($item['image_url'] ?? 'https://placehold.co/100x100/F0F0F0/333?text=Dish'); ?>" alt="">
+                                            <img class="item-image h-12 w-12 rounded-md object-cover" src="../<?php echo htmlspecialchars($item['image_url'] ?? 'uploads/menu_images/default.png'); ?>" alt="">
                                         </div>
                                         <div class="ml-4">
                                             <div class="item-name text-sm font-medium text-gray-900"><?php echo htmlspecialchars($item['name']); ?></div>
@@ -123,19 +119,28 @@ $active_page = 'menu';
     <div id="item-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
             <h3 id="modal-title" class="text-xl font-bold text-gray-900 mb-4">Add New Item</h3>
-            <form id="item-form">
+            <form id="item-form" enctype="multipart/form-data">
                 <input type="hidden" name="action" id="form-action" value="add">
                 <input type="hidden" name="item_id" id="item-id">
                 <div class="space-y-4">
+                    <!-- Image Upload Field -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Item Image</label>
+                        <div class="mt-1 flex items-center space-x-4">
+                            <img id="image-preview" src="https://placehold.co/100x100/F0F0F0/333?text=Dish" class="h-16 w-16 rounded-md object-cover bg-gray-100">
+                            <div class="flex-1">
+                                <input type="file" name="item_image" id="item-image" accept="image/jpeg, image/png, image/gif" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
+                                <p class="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 2MB. Max 900px resolution.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Other Form Fields -->
                     <div>
                         <label for="item-name" class="block text-sm font-medium text-gray-700">Name</label>
                         <input type="text" name="name" id="item-name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
                     </div>
                     <div>
-                        <div class="flex justify-between items-center">
-                            <label for="item-description" class="block text-sm font-medium text-gray-700">Description</label>
-                            <button type="button" id="write-with-ai-btn" class="text-xs text-orange-600 font-semibold hover:underline flex items-center"><i data-lucide="sparkles" class="w-3 h-3 mr-1"></i>Write with AI</button>
-                        </div>
+                        <label for="item-description" class="block text-sm font-medium text-gray-700">Description</label>
                         <textarea name="description" id="item-description" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500"></textarea>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
@@ -147,10 +152,6 @@ $active_page = 'menu';
                             <label for="item-price" class="block text-sm font-medium text-gray-700">Price (₱)</label>
                             <input type="number" name="price" id="item-price" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
                         </div>
-                    </div>
-                    <div>
-                        <label for="item-image-url" class="block text-sm font-medium text-gray-700">Image URL</label>
-                        <input type="text" name="image_url" id="item-image-url" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
                     </div>
                     <div class="flex items-center">
                         <input type="checkbox" name="is_available" id="item-is-available" class="h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500">
@@ -165,6 +166,16 @@ $active_page = 'menu';
         </div>
     </div>
     <script src="../js/script.js"></script>
-    <script src="../js/store_menu.js"></script>
+<script src="../js/store_menu.js"></script>
+    <script>
+        // Add this script to handle the image preview
+        document.getElementById('item-image').addEventListener('change', function(event) {
+            const preview = document.getElementById('image-preview');
+            const file = event.target.files[0];
+            if (file) {
+                preview.src = URL.createObjectURL(file);
+            }
+        });
+    </script>
 </body>
 </html>
