@@ -3,7 +3,6 @@
 require_once "../app_config.php";
 session_start();
 
-// Security checks
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || $_SESSION["role"] !== 'store') {
     header("location: ../login.php");
     exit;
@@ -22,7 +21,6 @@ $order_details = null;
 $order_items = [];
 $all_items_prepared = false; 
 
-// Fetch order details
 $sql_order = "
     SELECT 
         o.id, o.customer_id, o.order_date, o.total_amount, o.status, o.payment_method, o.delivery_address,
@@ -44,7 +42,6 @@ if ($stmt = mysqli_prepare($link, $sql_order)) {
     mysqli_stmt_close($stmt);
 }
 
-// Fetch items for this order and check if all are prepared
 if ($order_details) {
     $sql_items = "SELECT oi.id as order_item_id, oi.quantity, oi.price_per_item, oi.is_prepared, mi.name as item_name FROM order_items oi JOIN menu_items mi ON oi.item_id = mi.id WHERE oi.order_id = ?";
     if($stmt_items = mysqli_prepare($link, $sql_items)) {
@@ -125,11 +122,11 @@ $active_page = 'orders';
         </div>
     </div>
     <script src="../js/script.js"></script>
-    <script src="../js/store_view_order.js"></script>
-          <script>
+    <script>
         document.addEventListener('DOMContentLoaded', function() {
             const statusBadge = document.getElementById('order-status-badge');
             const sendToRiderContainer = document.getElementById('send-to-rider-container');
+            const wsUrl = "ws://localhost:8080";
 
             // --- ITEM STATUS TOGGLE LOGIC ---
             document.body.addEventListener('change', function(e) {
@@ -157,16 +154,30 @@ $active_page = 'orders';
                 }
             });
             
+            // --- FUNCTION TO NOTIFY CUSTOMER VIA WEBSOCKET ---
+            function notifyCustomer(customerId, orderId, newStatus) {
+                const conn = new WebSocket(wsUrl);
+                conn.onopen = function() {
+                    conn.send(JSON.stringify({
+                        type: 'order_status_update',
+                        customer_id: customerId,
+                        order_id: orderId,
+                        new_status: newStatus
+                    }));
+                    conn.close();
+                }
+            }
+
             // --- SEND TO RIDER BUTTON LOGIC ---
             document.body.addEventListener('click', function(e) {
                 const readyBtn = e.target.closest('.ready-btn');
                 if (readyBtn) {
                     const orderId = readyBtn.dataset.orderId;
+                    const customerId = <?php echo $order_details['customer_id']; ?>;
                     const formData = new FormData();
                     formData.append('order_id', orderId);
                     formData.append('action', 'ready_for_delivery');
                     
-                    // Show loading state
                     readyBtn.innerHTML = '<i data-lucide="loader" class="w-5 h-5 mr-2 animate-spin"></i> Sending...';
                     readyBtn.disabled = true;
                     lucide.createIcons();
@@ -175,14 +186,14 @@ $active_page = 'orders';
                     .then(res => res.json())
                     .then(data => {
                         if (data.status === 'success') {
-                            // Change button to "Waiting for rider" text
                             sendToRiderContainer.innerHTML = '<p class="text-center font-semibold text-purple-800">Waiting for rider...</p>';
-                            // Update status badge at the top
                             statusBadge.textContent = 'Out for Delivery';
                             statusBadge.className = 'px-3 py-1 text-sm font-semibold rounded-full bg-purple-100 text-purple-800';
+                            
+                            // Notify customer after successful update
+                            notifyCustomer(customerId, orderId, 'Out for Delivery');
                         } else {
                             alert('Error: ' + data.message);
-                            // Restore button
                             readyBtn.innerHTML = '<i data-lucide="send" class="w-5 h-5 mr-2"></i> Send to Rider';
                             readyBtn.disabled = false;
                             lucide.createIcons();

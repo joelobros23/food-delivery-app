@@ -28,7 +28,6 @@ if(!isset($active_page)) {
     </div>
     
     <ul class="flex flex-col py-4">
-        <!-- These links are now hidden on mobile and only appear on desktop -->
         <li class="hidden md:flex">
             <a href="customer_dashboard.php" class="flex flex-row items-center h-12 px-6 hover:bg-gray-100 <?php echo ($active_page == 'dashboard') ? 'bg-orange-100 border-r-4 border-orange-500 text-orange-600' : ''; ?>">
                 <span class="inline-flex items-center justify-center h-12 w-12 text-lg"><i data-lucide="home"></i></span>
@@ -47,18 +46,17 @@ if(!isset($active_page)) {
                 <span class="text-sm font-medium">My Orders</span>
             </a>
         </li>
-        
-        <!-- These links appear on both mobile and desktop -->
-         <li>
-            <a href="inbox.php" class="flex flex-row items-center h-12 px-6 hover:bg-gray-100 <?php echo ($active_page == 'inbox') ? 'bg-orange-100 border-r-4 border-orange-500 text-orange-600' : ''; ?>">
-                <span class="inline-flex items-center justify-center h-12 w-12 text-lg"><i data-lucide="inbox"></i></span>
-                <span class="text-sm font-medium">Inbox</span>
-            </a>
-        </li>
-         <li>
+        <li>
             <a href="favorites.php" class="flex flex-row items-center h-12 px-6 hover:bg-gray-100 <?php echo ($active_page == 'favorites') ? 'bg-orange-100 border-r-4 border-orange-500 text-orange-600' : ''; ?>">
                 <span class="inline-flex items-center justify-center h-12 w-12 text-lg"><i data-lucide="heart"></i></span>
                 <span class="text-sm font-medium">Favorites</span>
+            </a>
+        </li>
+         <!-- NEW: Profile link is now in the sidebar -->
+         <li>
+            <a href="profile.php" class="flex flex-row items-center h-12 px-6 hover:bg-gray-100 <?php echo ($active_page == 'profile') ? 'bg-orange-100 border-r-4 border-orange-500 text-orange-600' : ''; ?>">
+                <span class="inline-flex items-center justify-center h-12 w-12 text-lg"><i data-lucide="user"></i></span>
+                <span class="text-sm font-medium">Profile</span>
             </a>
         </li>
          <li>

@@ -4,23 +4,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemForm = document.getElementById('item-form');
     const modalTitle = document.getElementById('modal-title');
     const tableBody = document.querySelector('table tbody');
-    const tableContainer = document.querySelector('.overflow-x-auto');
-    const writeWithAiBtn = document.getElementById('write-with-ai-btn');
+    const imagePreview = document.getElementById('image-preview');
 
     // --- Modal Functions ---
     const showModal = () => itemModal.classList.remove('hidden');
     const hideModal = () => {
         itemModal.classList.add('hidden');
         itemForm.reset();
+        // Reset preview to default when closing
+        imagePreview.src = 'https://placehold.co/100x100/F0F0F0/333?text=Dish';
     };
 
     // --- Dynamic Table Row Update/Add ---
     function upsertTableRow(item) {
         const existingRow = tableBody.querySelector(`tr[data-item-id="${item.id}"]`);
+        // The image path needs ../ to go up one directory from the store/ folder
+        const displayImageUrl = item.image_url ? `../${item.image_url}` : 'https://placehold.co/100x100/F0F0F0/333?text=Dish';
+        
         const newRowHTML = `
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0 h-12 w-12"><img class="item-image h-12 w-12 rounded-md object-cover" src="${item.image_url || 'https://placehold.co/100x100/F0F0F0/333?text=Dish'}" alt=""></div>
+                    <div class="flex-shrink-0 h-12 w-12"><img class="item-image h-12 w-12 rounded-md object-cover" src="${displayImageUrl}" alt=""></div>
                     <div class="ml-4"><div class="item-name text-sm font-medium text-gray-900">${item.name}</div></div>
                 </div>
             </td>
@@ -38,14 +42,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <i data-lucide="more-vertical" class="w-5 h-5"></i>
                     </button>
                     <div class="item-options-menu hidden absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg border z-20 overflow-hidden">
-                        <a href="#" class="edit-btn w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                            <i data-lucide="pencil" class="w-4 h-4 mr-2 flex-shrink-0"></i>
-                            <span>Edit</span>
-                        </a>
-                        <a href="#" class="delete-btn w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
-                            <i data-lucide="trash-2" class="w-4 h-4 mr-2 flex-shrink-0"></i>
-                            <span>Delete</span>
-                        </a>
+                        <a href="#" class="edit-btn w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><i data-lucide="pencil" class="w-4 h-4 mr-2"></i><span>Edit</span></a>
+                        <a href="#" class="delete-btn w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100"><i data-lucide="trash-2" class="w-4 h-4 mr-2"></i><span>Delete</span></a>
                     </div>
                 </div>
             </td>`;
@@ -67,6 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('form-action').value = 'add';
         document.getElementById('item-id').value = '';
         document.getElementById('item-is-available').checked = true;
+        imagePreview.src = 'https://placehold.co/100x100/F0F0F0/333?text=Dish';
         showModal();
     });
 
@@ -85,30 +84,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }).catch(err => alert('An error occurred.'));
     });
     
-
     document.body.addEventListener('click', function(e){
-        // Handle options menu toggle
         const optionsBtn = e.target.closest('.item-options-btn');
         if (optionsBtn) {
-            e.stopPropagation();
             const currentMenu = optionsBtn.nextElementSibling;
             const isOpening = currentMenu.classList.contains('hidden');
-            
             document.querySelectorAll('.item-options-menu').forEach(menu => menu.classList.add('hidden'));
-            if(tableContainer) tableContainer.style.overflowX = 'auto';
-
-            if (isOpening) {
-                currentMenu.classList.remove('hidden');
-                if(tableContainer) tableContainer.style.overflowX = 'visible';
-            }
+            if (isOpening) currentMenu.classList.remove('hidden');
             return;
         }
         if (!e.target.closest('.item-options-menu')) {
             document.querySelectorAll('.item-options-menu').forEach(menu => menu.classList.add('hidden'));
-            if(tableContainer) tableContainer.style.overflowX = 'auto';
         }
 
-        // Handle Edit Button Click
         const editBtn = e.target.closest('.edit-btn');
         if (editBtn) {
             e.preventDefault();
@@ -130,14 +118,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('item-description').value = item.description;
                     document.getElementById('item-category').value = item.category;
                     document.getElementById('item-price').value = item.price;
-                    document.getElementById('item-image-url').value = item.image_url;
                     document.getElementById('item-is-available').checked = !!parseInt(item.is_available);
+                    // --- FIX: Correctly set the image preview source for existing items ---
+                    imagePreview.src = item.image_url ? `../${item.image_url}` : 'https://placehold.co/100x100/F0F0F0/333?text=Dish';
                     showModal();
                 } else { alert('Error: ' + data.message); }
             });
         }
         
-        // Handle Delete Button Click
         const deleteBtn = e.target.closest('.delete-btn');
         if (deleteBtn) {
             e.preventDefault();

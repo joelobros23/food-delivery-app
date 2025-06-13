@@ -1,31 +1,48 @@
 <?php
 // customer_dashboard_settings/bottom_nav.php
 
-// The parent page (e.g., customer_dashboard.php) is responsible for including app_config.php.
-// Including it again here causes the "Constant already defined" error.
-
 if(!isset($active_page)) { $active_page = ''; }
 
 $cart_count = 0;
-// We need to check session status because this file is included on multiple pages.
-// We also check if DB_HOST is defined to ensure the config has been loaded by the parent page.
+$unread_message_count = 0;
+$active_order_count = 0;
+
 if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true && defined('DB_HOST')) {
     
-    // This connection is self-contained for the nav bar to prevent conflicts.
     $nav_db_link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
     
     if ($nav_db_link) {
-        $sql_count = "SELECT SUM(quantity) as total FROM cart_items WHERE customer_id = ?";
-        if ($stmt_count = mysqli_prepare($nav_db_link, $sql_count)) {
-            mysqli_stmt_bind_param($stmt_count, "i", $_SESSION['id']);
-            mysqli_stmt_execute($stmt_count);
-            mysqli_stmt_bind_result($stmt_count, $count);
-            if(mysqli_stmt_fetch($stmt_count)) {
-                $cart_count = $count ?? 0;
-            }
-            mysqli_stmt_close($stmt_count);
+        $customer_id = $_SESSION['id'];
+        // Get cart count
+        $sql_cart = "SELECT SUM(quantity) as total FROM cart_items WHERE customer_id = ?";
+        if ($stmt_cart = mysqli_prepare($nav_db_link, $sql_cart)) {
+            mysqli_stmt_bind_param($stmt_cart, "i", $customer_id);
+            mysqli_stmt_execute($stmt_cart);
+            mysqli_stmt_bind_result($stmt_cart, $count);
+            if(mysqli_stmt_fetch($stmt_cart)) { $cart_count = $count ?? 0; }
+            mysqli_stmt_close($stmt_cart);
         }
-        // Always close the temporary connection immediately after use.
+
+        // Get unread message count
+        $sql_msg = "SELECT COUNT(id) FROM messages WHERE receiver_id = ? AND is_read = 0";
+         if ($stmt_msg = mysqli_prepare($nav_db_link, $sql_msg)) {
+            mysqli_stmt_bind_param($stmt_msg, "i", $customer_id);
+            mysqli_stmt_execute($stmt_msg);
+            mysqli_stmt_bind_result($stmt_msg, $count);
+            if(mysqli_stmt_fetch($stmt_msg)) { $unread_message_count = $count ?? 0; }
+            mysqli_stmt_close($stmt_msg);
+        }
+
+        // Get active order count
+        $sql_orders = "SELECT COUNT(id) FROM orders WHERE customer_id = ? AND status IN ('pending', 'preparing', 'out_for_delivery')";
+         if ($stmt_orders = mysqli_prepare($nav_db_link, $sql_orders)) {
+            mysqli_stmt_bind_param($stmt_orders, "i", $customer_id);
+            mysqli_stmt_execute($stmt_orders);
+            mysqli_stmt_bind_result($stmt_orders, $count);
+            if(mysqli_stmt_fetch($stmt_orders)) { $active_order_count = $count ?? 0; }
+            mysqli_stmt_close($stmt_orders);
+        }
+        
         mysqli_close($nav_db_link);
     }
 }
@@ -42,7 +59,69 @@ if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true && defined('D
                 <span id="cart-count-badge" class="absolute top-0 right-4 text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5"><?php echo $cart_count; ?></span>
             <?php endif; ?>
         </a>
-        <a href="orders.php" class="flex flex-col items-center justify-center w-full text-gray-600 hover:text-orange-600 <?php echo ($active_page == 'orders') ? 'text-orange-600' : ''; ?>"><i data-lucide="history" class="w-6 h-6 mb-1"></i><span class="text-xs font-medium">Orders</span></a>
-        <a href="profile.php" class="flex flex-col items-center justify-center w-full text-gray-600 hover:text-orange-600 <?php echo ($active_page == 'profile') ? 'text-orange-600' : ''; ?>"><i data-lucide="user" class="w-6 h-6 mb-1"></i><span class="text-xs font-medium">Profile</span></a>
+        <a href="orders.php" class="relative flex flex-col items-center justify-center w-full text-gray-600 hover:text-orange-600 <?php echo ($active_page == 'orders') ? 'text-orange-600' : ''; ?>">
+            <i data-lucide="history" class="w-6 h-6 mb-1"></i>
+            <span class="text-xs font-medium">Orders</span>
+            <!-- New Order Status Badge -->
+            <span id="order-status-badge" class="absolute top-0 right-4 text-xs bg-orange-500 text-white rounded-full px-1.5 py-0.5 <?php echo ($active_order_count > 0) ? '' : 'hidden'; ?>"><?php echo $active_order_count; ?></span>
+        </a>
+        <a href="inbox.php" class="relative flex flex-col items-center justify-center w-full text-gray-600 hover:text-orange-600 <?php echo ($active_page == 'inbox') ? 'text-orange-600' : ''; ?>">
+            <i data-lucide="inbox" class="w-6 h-6 mb-1"></i>
+            <span class="text-xs font-medium">Inbox</span>
+             <?php if ($unread_message_count > 0): ?>
+                <span id="message-count-badge" class="absolute top-0 right-4 text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5"><?php echo $unread_message_count; ?></span>
+            <?php else: ?>
+                <span id="message-count-badge" class="absolute top-0 right-4 text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5 hidden">0</span>
+             <?php endif; ?>
+        </a>
     </div>
 </div>
+
+<!-- WebSocket script for real-time indicators -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const messageBadge = document.getElementById('message-count-badge');
+    const orderStatusBadge = document.getElementById('order-status-badge');
+    const currentUserId = <?php echo isset($_SESSION['id']) ? $_SESSION['id'] : 'null'; ?>;
+    const wsUrl = "ws://localhost:8080";
+
+    if (!currentUserId) return; 
+
+    const conn = new WebSocket(wsUrl);
+
+    conn.onmessage = function(e) {
+        try {
+            const data = JSON.parse(e.data);
+
+            // Logic for New Message Notifications
+            if (data.type === 'new_message_notification' && data.for_receiver_id == currentUserId) {
+                if (data.new_count > 0) {
+                    messageBadge.textContent = data.new_count;
+                    messageBadge.classList.remove('hidden');
+                } else {
+                    messageBadge.classList.add('hidden');
+                }
+            }
+
+// Logic for Order Status Update Notifications
+if (data.type === 'order_update_notification' && data.for_customer_id == currentUserId) {
+    // Fetch the new count of active orders from the server
+    fetch('api/get_active_order_count.php') // We will need to create this new API file
+        .then(response => response.json())
+        .then(countData => {
+            if (countData.success && countData.count > 0) {
+                orderStatusBadge.textContent = countData.count;
+                orderStatusBadge.classList.remove('hidden');
+            } else {
+                orderStatusBadge.classList.add('hidden');
+            }
+        });
+}
+
+        } catch (error) { /* Ignore non-JSON messages */ }
+    };
+
+    conn.onopen = function(e) { console.log("Bottom nav WebSocket connection established."); };
+    conn.onerror = function(e) { console.error("Bottom nav WebSocket error:", e); };
+});
+</script>

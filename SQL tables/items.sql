@@ -70,6 +70,7 @@ CREATE TABLE `orders` (
   `delivery_address` VARCHAR(255) NOT NULL,
   `total_amount` DECIMAL(10, 2) NOT NULL,
   `status` ENUM('pending', 'preparing', 'out_for_delivery', 'delivered', 'cancelled') NOT NULL DEFAULT 'pending',
+  `status_viewed_by_customer` BOOLEAN NOT NULL DEFAULT TRUE,
   `payment_method` VARCHAR(50) NOT NULL DEFAULT 'cod',
   `delivery_notes` TEXT DEFAULT NULL,
   `order_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

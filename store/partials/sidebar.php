@@ -2,8 +2,10 @@
 // store/partials/sidebar.php
 if(!isset($active_page)) { $active_page = ''; }
 
+// --- Start Notification Count Logic ---
 $new_order_count = 0;
-$store_restaurant_id = null;
+$new_message_count = 0;
+$store_restaurant_id = null; 
 
 if (!defined('DB_HOST')) {
     require_once dirname(__DIR__, 2) . "/app_config.php";
@@ -19,16 +21,20 @@ $sidebar_link = get_db_connection_for_sidebar();
 if ($sidebar_link && isset($_SESSION['id'])) {
     $store_user_id = $_SESSION['id'];
     
+    // Get the restaurant_id for the logged-in user (for order notifications)
     $sql_resto_id = "SELECT id FROM restaurants WHERE user_id = ? LIMIT 1";
     if($stmt_resto_id = mysqli_prepare($sidebar_link, $sql_resto_id)) {
         mysqli_stmt_bind_param($stmt_resto_id, "i", $store_user_id);
         if (mysqli_stmt_execute($stmt_resto_id)) {
             mysqli_stmt_bind_result($stmt_resto_id, $r_id);
-            if(mysqli_stmt_fetch($stmt_resto_id)) { $store_restaurant_id = $r_id; }
+            if(mysqli_stmt_fetch($stmt_resto_id)) {
+                $store_restaurant_id = $r_id;
+            }
         }
         mysqli_stmt_close($stmt_resto_id);
     }
 
+    // Get new order count using the restaurant_id
     if ($store_restaurant_id) {
         $sql_orders = "SELECT COUNT(id) FROM orders WHERE restaurant_id = ? AND status = 'Pending'";
         if ($stmt_orders = mysqli_prepare($sidebar_link, $sql_orders)) {
@@ -41,8 +47,20 @@ if ($sidebar_link && isset($_SESSION['id'])) {
         }
     }
     
+    // Get unread message count using the user_id
+    $sql_messages = "SELECT COUNT(id) FROM messages WHERE receiver_id = ? AND is_read = 0";
+    if ($stmt_messages = mysqli_prepare($sidebar_link, $sql_messages)) {
+        mysqli_stmt_bind_param($stmt_messages, "i", $store_user_id);
+        if (mysqli_stmt_execute($stmt_messages)) {
+            mysqli_stmt_bind_result($stmt_messages, $count);
+            if (mysqli_stmt_fetch($stmt_messages)) { $new_message_count = $count; }
+        }
+        mysqli_stmt_close($stmt_messages);
+    }
+    
     mysqli_close($sidebar_link);
 }
+// --- End Notification Count Logic ---
 ?>
 <div class="hidden md:flex flex-col w-64 bg-gray-800 text-white">
     <div class="flex items-center justify-center h-20 shadow-md bg-gray-900">
@@ -63,8 +81,11 @@ if ($sidebar_link && isset($_SESSION['id'])) {
             </a>
         </li>
         <li>
-             <a href="inbox.php" class="flex items-center h-12 px-6 hover:bg-gray-700 <?php echo ($active_page == 'inbox') ? 'bg-orange-600' : ''; ?>">
-                <i data-lucide="inbox" class="w-5 h-5 mr-3"></i><span class="text-sm font-medium">Inbox</span>
+             <a href="inbox.php" class="flex items-center justify-between h-12 px-6 hover:bg-gray-700 <?php echo ($active_page == 'inbox') ? 'bg-orange-600' : ''; ?>">
+                <div class="flex items-center">
+                    <i data-lucide="inbox" class="w-5 h-5 mr-3"></i><span class="text-sm font-medium">Inbox</span>
+                </div>
+                <span id="message-notification-badge" class="px-2 py-0.5 ml-auto text-xs font-semibold text-white bg-red-500 rounded-full <?php echo ($new_message_count > 0) ? '' : 'hidden'; ?>"><?php echo $new_message_count; ?></span>
             </a>
         </li>
         <li>
@@ -84,7 +105,6 @@ if ($sidebar_link && isset($_SESSION['id'])) {
             <a href="../logout.php" class="flex items-center h-12 px-6 hover:bg-gray-700"><i data-lucide="log-out" class="w-5 h-5 mr-3"></i><span class="text-sm font-medium">Logout</span></a>
         </li>
     </ul>
-    <!-- Notification Permission Button -->
     <div class="px-6 py-4 mt-auto">
         <button id="enable-notifications-btn" class="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-gray-700 rounded-lg hover:bg-gray-600">
             <i data-lucide="bell" class="w-4 h-4 mr-2"></i>
@@ -93,57 +113,34 @@ if ($sidebar_link && isset($_SESSION['id'])) {
     </div>
 </div>
 
-<!-- WebSocket and Device Notification script -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const orderBadge = document.getElementById('order-notification-badge');
+    const messageBadge = document.getElementById('message-notification-badge');
     const enableNotificationsBtn = document.getElementById('enable-notifications-btn');
+    
     const currentRestaurantId = <?php echo isset($store_restaurant_id) ? $store_restaurant_id : 'null'; ?>;
+    const currentUserId = <?php echo isset($_SESSION['id']) ? $_SESSION['id'] : 'null'; ?>;
     const wsUrl = "ws://localhost:8080";
 
-    // --- Device Notification Logic ---
+    if (!currentUserId) return;
+
     function requestNotificationPermission() {
-        if (!("Notification" in window)) {
-            alert("This browser does not support desktop notification");
-        } else if (Notification.permission !== "denied") {
-            Notification.requestPermission().then(function (permission) {
+        if (!("Notification" in window)) { return; }
+        if (Notification.permission !== "denied") {
+            Notification.requestPermission().then(permission => {
                 if (permission === "granted") {
-                    console.log("Notification permission granted.");
-                    new Notification("Notifications Enabled!", {
-                        body: "You will now receive alerts for new orders.",
-                        icon: "https://placehold.co/48x48/orange/white?text=🔔" // A placeholder icon
-                    });
+                    new Notification("Notifications Enabled!", { body: "You will now receive alerts for new orders and messages." });
                 }
             });
         }
     }
-
-    function showNewOrderNotification(data) {
-        if (Notification.permission !== "granted") {
-            return; // Exit if permission is not granted
-        }
-
-        const title = "New Order Received!";
-        const options = {
-            body: `You have a new pending order (#${data.order_id}). Click to view.`,
-            icon: 'https://placehold.co/48x48/orange/white?text=📦', // A placeholder icon
-            tag: 'new-order' // Prevents spamming notifications
-        };
-
-        const notification = new Notification(title, options);
-        
-        // Make the notification clickable, taking the user to the orders page
-        notification.onclick = function() {
-            window.open('orders.php', '_blank');
-        };
-    }
-    
     enableNotificationsBtn.addEventListener('click', requestNotificationPermission);
-
-
-    // --- WebSocket Logic ---
-    if (!currentRestaurantId || !orderBadge) {
-        return; 
+    
+    function showNotification(title, options) {
+        if (Notification.permission === "granted") {
+            new Notification(title, options);
+        }
     }
 
     const conn = new WebSocket(wsUrl);
@@ -152,27 +149,32 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const data = JSON.parse(e.data);
 
+            // Logic for New Order Notifications
             if (data.type === 'new_order_notification' && data.for_store_id == currentRestaurantId) {
-                console.log('New order notification received:', data);
-                
-                // 1. Update the sidebar badge
                 if (data.new_count > 0) {
                     orderBadge.textContent = data.new_count;
                     orderBadge.classList.remove('hidden');
                 } else {
                     orderBadge.classList.add('hidden');
                 }
-                
-                // 2. Trigger the device notification
-                showNewOrderNotification(data);
+                showNotification("New Order Received!", { body: `You have a new pending order (#${data.order_id}).`, tag: 'new-order'});
             }
 
-        } catch (error) {
-            // This is likely a chat message, which we can ignore
-        }
+            // --- FIX: Listens for 'new_message_notification' as sent by the server ---
+            if (data.type === 'new_message_notification' && data.for_receiver_id == currentUserId) {
+                 if (data.new_count > 0) {
+                    messageBadge.textContent = data.new_count;
+                    messageBadge.classList.remove('hidden');
+                } else {
+                    messageBadge.classList.add('hidden');
+                }
+                showNotification("New Message Received!", { body: `You have a new message regarding order #${data.order_id}.`, tag: `new-message-${data.order_id}`});
+            }
+
+        } catch (error) { /* Ignore non-JSON messages */ }
     };
 
-    conn.onopen = function(e) { console.log("Sidebar WebSocket connection established for restaurant ID: " + currentRestaurantId); };
+    conn.onopen = function(e) { console.log("Sidebar WebSocket connection established."); };
     conn.onerror = function(e) { console.error("Sidebar WebSocket error:", e); };
 });
 </script>
