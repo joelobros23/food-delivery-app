@@ -18,6 +18,18 @@ if ($link === false) { die("DB Connection Error"); }
 
 $order_id = trim($_GET['id']);
 $customer_id = $_SESSION['id'];
+
+// --- FIX: MARK STATUS AS VIEWED ---
+// When the customer visits this page, we set the flag to 1 (viewed).
+// This will make the indicator count go down on the next page load or real-time update.
+$update_sql = "UPDATE orders SET status_viewed_by_customer = 1 WHERE id = ? AND customer_id = ?";
+if ($stmt_update = mysqli_prepare($link, $update_sql)) {
+    mysqli_stmt_bind_param($stmt_update, "ii", $order_id, $customer_id);
+    mysqli_stmt_execute($stmt_update);
+    mysqli_stmt_close($stmt_update);
+}
+
+
 $order_details = null;
 $order_items = [];
 

@@ -5,8 +5,8 @@ header('Content-Type: application/json');
 
 $response = ['status' => 'error', 'message' => 'An unknown error occurred.'];
 
-if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
-    $response['message'] = 'User not logged in.';
+if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || !isset($_SESSION["role"])) {
+    $response['message'] = 'Unauthorized access.';
     echo json_encode($response);
     exit;
 }
@@ -17,24 +17,30 @@ if (!isset($_POST['action']) || empty($_POST['action'])) {
     exit;
 }
 
-require_once "../db_connection/config.php";
+require_once "../app_config.php";
+$link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+if (!$link) {
+    $response['message'] = 'Database connection error.';
+    echo json_encode($response);
+    exit;
+}
+
 $action = $_POST['action'];
 $customer_id = $_SESSION['id'];
 
 switch ($action) {
     case 'update_personal':
-        if (!isset($_POST['full_name'], $_POST['address'])) {
+        // FIX: The form now only sends 'full_name', so we only check for that.
+        if (!isset($_POST['full_name'])) {
             $response['message'] = 'Missing personal details.';
             break;
         }
         $full_name = trim($_POST['full_name']);
-        $address = trim($_POST['address']);
-        $latitude = !empty($_POST['latitude']) ? trim($_POST['latitude']) : null;
-        $longitude = !empty($_POST['longitude']) ? trim($_POST['longitude']) : null;
         
-        $sql = "UPDATE users SET full_name = ?, address = ?, latitude = ?, longitude = ? WHERE id = ?";
+        // FIX: The SQL now only updates the 'full_name' field.
+        $sql = "UPDATE users SET full_name = ? WHERE id = ?";
         if ($stmt = mysqli_prepare($link, $sql)) {
-            mysqli_stmt_bind_param($stmt, "ssddi", $full_name, $address, $latitude, $longitude, $customer_id);
+            mysqli_stmt_bind_param($stmt, "si", $full_name, $customer_id);
             if(mysqli_stmt_execute($stmt)){
                 $_SESSION["name"] = $full_name; // Update session name
                 $response = ['status' => 'success', 'message' => 'Personal details updated successfully!'];

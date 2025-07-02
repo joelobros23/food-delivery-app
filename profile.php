@@ -6,9 +6,23 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || $_SESSION
     exit;
 }
 
-require_once "db_connection/config.php";
+require_once "app_config.php";
+$link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+if ($link === false) { die("DB Connection Error"); }
+
 $customer_id = $_SESSION['id'];
 $activities = [];
+$user_details = [];
+
+// --- NEW: Fetch phone number and complete address ---
+$sql_user = "SELECT phone_number, complete_address FROM users WHERE id = ?";
+if($stmt_user = mysqli_prepare($link, $sql_user)){
+    mysqli_stmt_bind_param($stmt_user, "i", $customer_id);
+    mysqli_stmt_execute($stmt_user);
+    $result_user = mysqli_stmt_get_result($stmt_user);
+    $user_details = mysqli_fetch_assoc($result_user);
+    mysqli_stmt_close($stmt_user);
+}
 
 // Fetch recent activities (last 10 favorites and reviews)
 $sql_activities = "
@@ -60,14 +74,21 @@ $active_page = 'profile';
             <div class="p-4 md:p-6 pb-20 md:pb-6">
                 
                 <div class="max-w-4xl mx-auto space-y-8">
-                    <!-- Profile Header -->
                     <div class="bg-white p-6 rounded-lg shadow-md text-center">
                         <img src="https://placehold.co/128x128/EFEFEF/333?text=<?php echo substr($_SESSION["name"], 0, 1); ?>" alt="profile" class="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-white ring-2 ring-orange-500">
                         <h1 class="text-2xl font-bold text-gray-900"><?php echo htmlspecialchars($_SESSION["name"]); ?></h1>
                         <p class="text-gray-500"><?php echo htmlspecialchars($_SESSION["email"]); ?></p>
+                        
+                        <p class="mt-2 text-sm text-gray-500 flex items-center justify-center">
+                            <i data-lucide="phone" class="w-4 h-4 mr-2"></i>
+                            <span><?php echo htmlspecialchars($user_details['phone_number'] ?? 'Phone not set'); ?></span>
+                        </p>
+                        <p class="mt-1 text-sm text-gray-500 flex items-center justify-center">
+                            <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+                            <span><?php echo htmlspecialchars($user_details['complete_address'] ?? 'Address not set'); ?></span>
+                        </p>
                     </div>
 
-                    <!-- Activities Feed -->
                     <div class="bg-white p-6 rounded-lg shadow-md">
                          <h2 class="text-xl font-bold text-gray-800 mb-4">My Activities</h2>
                          <div class="space-y-6">

@@ -128,12 +128,10 @@ $active_page = 'orders';
             const sendToRiderContainer = document.getElementById('send-to-rider-container');
             const wsUrl = "ws://localhost:8080";
 
-            // --- ITEM STATUS TOGGLE LOGIC ---
             document.body.addEventListener('change', function(e) {
                 if (e.target.classList.contains('item-status-toggle')) {
                     const toggle = e.target;
                     const orderItemId = toggle.dataset.orderItemId;
-                    const itemRowText = toggle.closest('.flex.justify-between').querySelector('.item-text-container span');
                     const formData = new FormData();
                     formData.append('order_item_id', orderItemId);
 
@@ -141,6 +139,7 @@ $active_page = 'orders';
                     .then(res => res.json())
                     .then(data => {
                         if (data.status === 'success') {
+                            const itemRowText = toggle.closest('.flex.justify-between').querySelector('.item-text-container span');
                             itemRowText.classList.toggle('line-through', toggle.checked);
                             itemRowText.classList.toggle('text-gray-400', toggle.checked);
                             const allToggles = document.querySelectorAll('.item-status-toggle');
@@ -158,17 +157,19 @@ $active_page = 'orders';
             function notifyCustomer(customerId, orderId, newStatus) {
                 const conn = new WebSocket(wsUrl);
                 conn.onopen = function() {
+                    console.log("Connection opened to notify customer.");
                     conn.send(JSON.stringify({
                         type: 'order_status_update',
                         customer_id: customerId,
                         order_id: orderId,
                         new_status: newStatus
                     }));
-                    conn.close();
+                    setTimeout(() => conn.close(), 500);
                 }
+                 conn.onerror = function(e) { console.error("Notify Customer WS Error:", e); };
             }
 
-            // --- SEND TO RIDER BUTTON LOGIC ---
+           // --- SEND TO RIDER BUTTON LOGIC ---
             document.body.addEventListener('click', function(e) {
                 const readyBtn = e.target.closest('.ready-btn');
                 if (readyBtn) {
@@ -190,7 +191,7 @@ $active_page = 'orders';
                             statusBadge.textContent = 'Out for Delivery';
                             statusBadge.className = 'px-3 py-1 text-sm font-semibold rounded-full bg-purple-100 text-purple-800';
                             
-                            // Notify customer after successful update
+                            // --- FIX: Only call the notifyCustomer function once ---
                             notifyCustomer(customerId, orderId, 'Out for Delivery');
                         } else {
                             alert('Error: ' + data.message);

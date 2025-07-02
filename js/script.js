@@ -253,40 +253,6 @@ document.addEventListener('DOMContentLoaded', function() {
         sidebarOverlay?.addEventListener('click', closeSidebar);
     }
     
-    // --- SEARCH PAGE LOGIC ---
-    const searchInput = document.getElementById('search-input');
-    if (searchInput) {
-        const autosuggestContainer = document.getElementById('autosuggest-container');
-        const searchForm = document.getElementById('search-form');
-        let debounceTimer;
-        searchInput.addEventListener('keyup', function(e) {
-            const query = e.target.value.trim();
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                if (query.length < 2) { autosuggestContainer.classList.add('hidden'); return; }
-                fetch(`customer_dashboard_settings/autosuggest.php?term=${encodeURIComponent(query)}`).then(r => r.json()).then(data => {
-                    if (data.length > 0) {
-                        let suggestionsHTML = '<ul class="divide-y divide-gray-100">';
-                        data.forEach(item => {
-                            const icon = item.type === 'restaurant' ? '<i data-lucide="store" class="w-5 h-5 mr-3 text-gray-400"></i>' : '<i data-lucide="utensils" class="w-5 h-5 mr-3 text-gray-400"></i>';
-                            suggestionsHTML += `<li class="p-3 hover:bg-gray-100 cursor-pointer flex items-center" data-value="${item.name}">${icon}<span>${item.name}</span></li>`;
-                        });
-                        suggestionsHTML += '</ul>';
-                        autosuggestContainer.innerHTML = suggestionsHTML;
-                        autosuggestContainer.classList.remove('hidden');
-                        createIcons();
-                    } else { autosuggestContainer.classList.add('hidden'); }
-                });
-            }, 300);
-        });
-        autosuggestContainer.addEventListener('click', function(e) {
-            if (e.target.closest('li')) { searchInput.value = e.target.closest('li').dataset.value; autosuggestContainer.classList.add('hidden'); searchForm.submit(); }
-        });
-        document.addEventListener('click', function (e) {
-            if (autosuggestContainer && !autosuggestContainer.contains(e.target) && e.target !== searchInput) { autosuggestContainer.classList.add('hidden'); }
-        });
-    }
-    
     // --- GENERIC TAB SWITCHING LOGIC for any page with tabs ---
     const tabs = document.querySelectorAll('.tab-btn');
     if (tabs.length > 0) {

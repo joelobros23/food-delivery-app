@@ -13,6 +13,7 @@ if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true && defined('D
     
     if ($nav_db_link) {
         $customer_id = $_SESSION['id'];
+        
         // Get cart count
         $sql_cart = "SELECT SUM(quantity) as total FROM cart_items WHERE customer_id = ?";
         if ($stmt_cart = mysqli_prepare($nav_db_link, $sql_cart)) {
@@ -33,8 +34,8 @@ if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true && defined('D
             mysqli_stmt_close($stmt_msg);
         }
 
-        // Get active order count
-        $sql_orders = "SELECT COUNT(id) FROM orders WHERE customer_id = ? AND status IN ('pending', 'preparing', 'out_for_delivery')";
+        // --- FIX: This query now correctly counts only orders with UNSEEN status updates on initial page load ---
+        $sql_orders = "SELECT COUNT(id) FROM orders WHERE customer_id = ? AND status_viewed_by_customer = 0";
          if ($stmt_orders = mysqli_prepare($nav_db_link, $sql_orders)) {
             mysqli_stmt_bind_param($stmt_orders, "i", $customer_id);
             mysqli_stmt_execute($stmt_orders);
@@ -62,7 +63,6 @@ if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true && defined('D
         <a href="orders.php" class="relative flex flex-col items-center justify-center w-full text-gray-600 hover:text-orange-600 <?php echo ($active_page == 'orders') ? 'text-orange-600' : ''; ?>">
             <i data-lucide="history" class="w-6 h-6 mb-1"></i>
             <span class="text-xs font-medium">Orders</span>
-            <!-- New Order Status Badge -->
             <span id="order-status-badge" class="absolute top-0 right-4 text-xs bg-orange-500 text-white rounded-full px-1.5 py-0.5 <?php echo ($active_order_count > 0) ? '' : 'hidden'; ?>"><?php echo $active_order_count; ?></span>
         </a>
         <a href="inbox.php" class="relative flex flex-col items-center justify-center w-full text-gray-600 hover:text-orange-600 <?php echo ($active_page == 'inbox') ? 'text-orange-600' : ''; ?>">
@@ -93,7 +93,6 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const data = JSON.parse(e.data);
 
-            // Logic for New Message Notifications
             if (data.type === 'new_message_notification' && data.for_receiver_id == currentUserId) {
                 if (data.new_count > 0) {
                     messageBadge.textContent = data.new_count;
@@ -103,20 +102,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-// Logic for Order Status Update Notifications
-if (data.type === 'order_update_notification' && data.for_customer_id == currentUserId) {
-    // Fetch the new count of active orders from the server
-    fetch('api/get_active_order_count.php') // We will need to create this new API file
-        .then(response => response.json())
-        .then(countData => {
-            if (countData.success && countData.count > 0) {
-                orderStatusBadge.textContent = countData.count;
-                orderStatusBadge.classList.remove('hidden');
-            } else {
-                orderStatusBadge.classList.add('hidden');
+            if (data.type === 'order_update_notification' && data.for_customer_id == currentUserId) {
+                fetch('api/get_unseen_order_count.php')
+                    .then(response => response.json())
+                    .then(countData => {
+                        if (countData.success && countData.count > 0) {
+                            orderStatusBadge.textContent = countData.count;
+                            orderStatusBadge.classList.remove('hidden');
+                        } else {
+                            orderStatusBadge.classList.add('hidden');
+                        }
+                    });
             }
-        });
-}
 
         } catch (error) { /* Ignore non-JSON messages */ }
     };

@@ -19,16 +19,29 @@ if ($link === false) { die("DB Connection Error"); }
 $item_id = trim($_GET["id"]);
 $customer_id = $_SESSION['id'];
 $item_details = null;
+$user_contact_details = null;
 
-$sql = "SELECT mi.id, mi.name as item_name, mi.description, mi.price, mi.image_url as item_image, r.id as restaurant_id, r.name as restaurant_name, (SELECT COUNT(*) FROM favorite_items WHERE menu_item_id = mi.id) as favorite_count, f.id as favorite_id FROM menu_items mi JOIN restaurants r ON mi.restaurant_id = r.id LEFT JOIN favorite_items f ON mi.id = f.menu_item_id AND f.customer_id = ? WHERE mi.id = ?";
-if($stmt = mysqli_prepare($link, $sql)){
-    mysqli_stmt_bind_param($stmt, "ii", $customer_id, $item_id);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
-    if(mysqli_num_rows($result) == 1){ $item_details = mysqli_fetch_assoc($result); } 
+// Fetch item details
+$sql_item = "SELECT mi.id, mi.name as item_name, mi.description, mi.price, mi.image_url as item_image, r.id as restaurant_id, r.name as restaurant_name, (SELECT COUNT(*) FROM favorite_items WHERE menu_item_id = mi.id) as favorite_count, f.id as favorite_id FROM menu_items mi JOIN restaurants r ON mi.restaurant_id = r.id LEFT JOIN favorite_items f ON mi.id = f.menu_item_id AND f.customer_id = ? WHERE mi.id = ?";
+if($stmt_item = mysqli_prepare($link, $sql_item)){
+    mysqli_stmt_bind_param($stmt_item, "ii", $customer_id, $item_id);
+    mysqli_stmt_execute($stmt_item);
+    $result_item = mysqli_stmt_get_result($stmt_item);
+    if(mysqli_num_rows($result_item) == 1){ $item_details = mysqli_fetch_assoc($result_item); } 
     else { header("location: customer_dashboard.php"); exit; }
-    mysqli_stmt_close($stmt);
+    mysqli_stmt_close($stmt_item);
 }
+
+// Fetch user's contact details to check if they are complete
+$sql_user = "SELECT phone_number, complete_address FROM users WHERE id = ?";
+if($stmt_user = mysqli_prepare($link, $sql_user)){
+    mysqli_stmt_bind_param($stmt_user, "i", $customer_id);
+    mysqli_stmt_execute($stmt_user);
+    $result_user = mysqli_stmt_get_result($stmt_user);
+    $user_contact_details = mysqli_fetch_assoc($result_user);
+    mysqli_stmt_close($stmt_user);
+}
+
 mysqli_close($link);
 
 if(is_null($item_details)){ header("location: customer_dashboard.php"); exit; }
@@ -69,8 +82,7 @@ $active_page = 'search';
                                     <label for="quantity" class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
                                     <input type="number" id="quantity" name="quantity" value="1" min="1" max="10" class="w-20 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
                                 </div>
-                                <div id="cart-message" class="text-sm text-green-600 font-semibold mt-4"></div>
-                                <!-- CORRECTED: Restored the button grid -->
+                                <div id="cart-message" class="text-sm font-semibold mt-4"></div>
                                 <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <button id="add-to-cart-btn" data-item-id="<?php echo $item_details['id']; ?>" class="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-orange-600 bg-orange-100 hover:bg-orange-200">Add to Cart</button>
                                     <button id="buy-now-btn" class="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700">Buy Now</button>
@@ -84,7 +96,7 @@ $active_page = 'search';
         </div>
     </div>
 
-    <!-- Payment Modal -->
+    <!-- FIX: Restored the Payment Modal -->
     <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
             <div class="flex justify-between items-center mb-4">
@@ -98,6 +110,7 @@ $active_page = 'search';
             </div>
         </div>
     </div>
+
     <script src="js/script.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -108,11 +121,23 @@ $active_page = 'search';
             const paymentModal = document.getElementById('payment-modal');
             const closeModalBtn = document.getElementById('close-modal-btn');
             
-            // Add to Cart Logic
+            const hasPhoneNumber = <?php echo json_encode(!empty($user_contact_details['phone_number'])); ?>;
+            const hasCompleteAddress = <?php echo json_encode(!empty($user_contact_details['complete_address'])); ?>;
+
+            function redirectToContactDetails() {
+                cartMessageDiv.innerHTML = `<span class="text-red-600 flex items-center"><i data-lucide="alert-circle" class="w-5 h-5 mr-2"></i>Please complete your contact details first. Redirecting...</span>`;
+                lucide.createIcons();
+                setTimeout(() => { window.location.href = 'contact_details.php'; }, 2000);
+            }
+
             addToCartBtn.addEventListener('click', () => {
+                if (!hasPhoneNumber || !hasCompleteAddress) {
+                    redirectToContactDetails();
+                    return;
+                }
+
                 const itemId = addToCartBtn.dataset.itemId;
                 const quantity = quantityInput.value;
-
                 cartMessageDiv.textContent = '';
                 const formData = new FormData();
                 formData.append('item_id', itemId);
@@ -122,20 +147,22 @@ $active_page = 'search';
                 .then(res => res.json())
                 .then(data => {
                     if(data.status === 'success') {
-                        cartMessageDiv.innerHTML = `<span class="flex items-center"><i data-lucide="check-circle" class="w-5 h-5 mr-2"></i> ${data.message}</span>`;
+                        cartMessageDiv.innerHTML = `<span class="flex items-center text-green-600"><i data-lucide="check-circle" class="w-5 h-5 mr-2"></i> ${data.message}</span>`;
                         lucide.createIcons();
                     } else {
                         cartMessageDiv.innerHTML = `<span class="text-red-600">${data.message}</span>`;
                     }
-                })
-                .catch(err => {
-                    cartMessageDiv.innerHTML = `<span class="text-red-600">An error occurred. Please try again.</span>`;
                 });
             });
             
-            // CORRECTED: Restored the "Buy Now" button and modal logic
+            // FIX: This now checks details before showing the modal
             buyNowBtn.addEventListener('click', () => {
+                if (!hasPhoneNumber || !hasCompleteAddress) {
+                    redirectToContactDetails();
+                    return;
+                }
                 paymentModal.classList.remove('hidden');
+                lucide.createIcons(); // Redraw icons in the modal if needed
             });
             
             closeModalBtn.addEventListener('click', () => {
@@ -156,6 +183,7 @@ $active_page = 'search';
                     }
                 });
             });
+
         });
     </script>
 </body>

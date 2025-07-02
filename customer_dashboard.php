@@ -14,7 +14,6 @@ if ($link === false) { die("DB Connection Error"); }
 
 // --- Fetch user's location details ---
 $user_address = null;
-$user_city = null;
 $sql_user_location = "SELECT address, city FROM users WHERE id = ?";
 if($stmt_user = mysqli_prepare($link, $sql_user_location)){
     mysqli_stmt_bind_param($stmt_user, "i", $customer_id);
@@ -22,7 +21,8 @@ if($stmt_user = mysqli_prepare($link, $sql_user_location)){
     mysqli_stmt_bind_result($stmt_user, $u_address, $u_city);
     if(mysqli_stmt_fetch($stmt_user)){
         $user_address = $u_address;
-        $user_city = $u_city;
+        // Keep user_city for display purposes if needed
+        $user_city = $u_city; 
     }
     mysqli_stmt_close($stmt_user);
 }
@@ -33,28 +33,28 @@ $popular_items = [];
 $most_favorited_items = [];
 $cuisines = [];
 
-// --- Only fetch dashboard content if the user has a city set ---
-if ($user_city) {
-    // Fetch featured restaurants in the user's city
+// --- Only fetch dashboard content if the user has an address set ---
+if ($user_address) {
+    // --- FIX: This query now filters restaurants by the user's ADDRESS ---
     $restaurants_sql = "
         SELECT r.id, r.name, r.cuisine, r.banner_image_url, 
                (SELECT AVG(rating) FROM reviews WHERE restaurant_id = r.id) as avg_rating,
                fr.id as favorite_restaurant_id
         FROM restaurants r
         LEFT JOIN favorite_restaurants fr ON r.id = fr.restaurant_id AND fr.customer_id = ?
-        WHERE r.is_open = 1 AND r.city = ?
+        WHERE r.is_open = 1 AND r.address = ?
         ORDER BY r.id DESC 
         LIMIT 6";
 
     if($stmt_rest = mysqli_prepare($link, $restaurants_sql)){
-        mysqli_stmt_bind_param($stmt_rest, "is", $customer_id, $user_city);
+        mysqli_stmt_bind_param($stmt_rest, "is", $customer_id, $user_address);
         mysqli_stmt_execute($stmt_rest);
         $result = mysqli_stmt_get_result($stmt_rest);
         $restaurants = mysqli_fetch_all($result, MYSQLI_ASSOC);
         mysqli_stmt_close($stmt_rest);
     }
 
-    // --- Popular Items logic is now based only on order count ---
+    // --- FIX: This query now filters popular items by the user's ADDRESS ---
     $popular_items_sql = "
         SELECT 
             mi.id, mi.name as item_name, mi.price, mi.image_url as item_image,
@@ -65,20 +65,20 @@ if ($user_city) {
         JOIN menu_items mi ON oi.item_id = mi.id
         JOIN restaurants r ON mi.restaurant_id = r.id
         LEFT JOIN favorite_items fi ON mi.id = fi.menu_item_id AND fi.customer_id = ?
-        WHERE r.city = ?
+        WHERE r.address = ?
         GROUP BY mi.id
         ORDER BY order_count DESC
         LIMIT 4";
 
     if($stmt_popular = mysqli_prepare($link, $popular_items_sql)){
-        mysqli_stmt_bind_param($stmt_popular, "is", $customer_id, $user_city);
+        mysqli_stmt_bind_param($stmt_popular, "is", $customer_id, $user_address);
         mysqli_stmt_execute($stmt_popular);
         $result_popular = mysqli_stmt_get_result($stmt_popular);
         $popular_items = mysqli_fetch_all($result_popular, MYSQLI_ASSOC);
         mysqli_stmt_close($stmt_popular);
     }
-
-    // --- Fallback to random items if no items have been ordered yet ---
+    
+    // Fallback to random items if no items have been ordered yet
     if (empty($popular_items)) {
         $random_items_sql = "
             SELECT
@@ -88,12 +88,12 @@ if ($user_city) {
             FROM menu_items mi
             JOIN restaurants r ON mi.restaurant_id = r.id
             LEFT JOIN favorite_items fi ON mi.id = fi.menu_item_id AND fi.customer_id = ?
-            WHERE r.city = ?
+            WHERE r.address = ?
             ORDER BY RAND()
             LIMIT 4";
 
         if($stmt_random = mysqli_prepare($link, $random_items_sql)){
-            mysqli_stmt_bind_param($stmt_random, "is", $customer_id, $user_city);
+            mysqli_stmt_bind_param($stmt_random, "is", $customer_id, $user_address);
             mysqli_stmt_execute($stmt_random);
             $result_random = mysqli_stmt_get_result($stmt_random);
             $popular_items = mysqli_fetch_all($result_random, MYSQLI_ASSOC);
@@ -101,7 +101,7 @@ if ($user_city) {
         }
     }
     
-    // --- Logic to fetch most favorited items, filtered by city ---
+    // --- FIX: This query now filters favorited items by the user's ADDRESS ---
     $most_favorited_sql = "
         SELECT
             mi.id, mi.name as item_name, mi.price, mi.image_url as item_image,
@@ -111,23 +111,23 @@ if ($user_city) {
         FROM favorite_items f
         JOIN menu_items mi ON f.menu_item_id = mi.id
         JOIN restaurants r ON mi.restaurant_id = r.id
-        WHERE r.city = ?
+        WHERE r.address = ?
         GROUP BY mi.id
         ORDER BY favorite_count DESC
         LIMIT 4";
 
     if($stmt_fave = mysqli_prepare($link, $most_favorited_sql)){
-        mysqli_stmt_bind_param($stmt_fave, "is", $customer_id, $user_city);
+        mysqli_stmt_bind_param($stmt_fave, "is", $customer_id, $user_address);
         mysqli_stmt_execute($stmt_fave);
         $result_fave = mysqli_stmt_get_result($stmt_fave);
         $most_favorited_items = mysqli_fetch_all($result_fave, MYSQLI_ASSOC);
         mysqli_stmt_close($stmt_fave);
     }
 
-    // Fetch unique cuisine categories from restaurants in the user's city
-    $cuisines_sql = "SELECT DISTINCT cuisine FROM restaurants WHERE cuisine IS NOT NULL AND cuisine != '' AND city = ? ORDER BY cuisine ASC";
+    // Fetch unique cuisine categories from restaurants in the user's address
+    $cuisines_sql = "SELECT DISTINCT cuisine FROM restaurants WHERE cuisine IS NOT NULL AND cuisine != '' AND address = ? ORDER BY cuisine ASC";
     if($stmt_cuisines = mysqli_prepare($link, $cuisines_sql)){
-        mysqli_stmt_bind_param($stmt_cuisines, "s", $user_city);
+        mysqli_stmt_bind_param($stmt_cuisines, "s", $user_address);
         mysqli_stmt_execute($stmt_cuisines);
         $cuisines_result = mysqli_stmt_get_result($stmt_cuisines);
         $cuisines = mysqli_fetch_all($cuisines_result, MYSQLI_ASSOC);

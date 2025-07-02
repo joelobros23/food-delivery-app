@@ -26,18 +26,6 @@ CREATE TABLE `restaurants` (
 );
 
 
-CREATE TABLE `cart_items` (
-  `id` INT(11) NOT NULL AUTO_INCREMENT,
-  `customer_id` INT(11) NOT NULL,
-  `item_id` INT(11) NOT NULL,
-  `quantity` INT(11) NOT NULL DEFAULT 1,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`item_id`) REFERENCES `menu_items`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
 --
 -- Table structure for table `menu_items`
 -- Stores all the food and drink items available from each restaurant.
@@ -155,4 +143,15 @@ CREATE TABLE `favorite_items` (
   PRIMARY KEY (`id`),
   FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`menu_item_id`) REFERENCES `menu_items`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `cart_items` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `customer_id` INT(11) NOT NULL,
+  `item_id` INT(11) NOT NULL,
+  `quantity` INT(11) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`item_id`) REFERENCES `menu_items`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
