@@ -62,9 +62,12 @@ $active_page = 'inbox';
 <body class="bg-gray-100 font-sans">
     <div class="flex h-screen bg-gray-100">
         <?php require_once 'partials/sidebar.php'; ?>
+        
         <div class="flex flex-col flex-1 overflow-y-auto">
             <?php require_once 'partials/header.php'; ?>
-            <div class="p-4 md:p-6">
+            
+            <!-- Main Content with responsive bottom padding -->
+            <div class="p-4 md:p-6 pb-24 md:pb-6">
                 <h1 class="text-3xl font-bold text-gray-800 mb-6">Inbox</h1>
                 
                 <div class="bg-white rounded-lg shadow-md">
@@ -72,29 +75,33 @@ $active_page = 'inbox';
                         <?php if (empty($inbox_threads)): ?>
                             <p class="text-center text-gray-500 py-12">You have no messages.</p>
                         <?php else: foreach($inbox_threads as $thread): ?>
-                            <a href="messages.php?order_id=<?php echo $thread['order_id']; ?>&receiver_id=<?php echo $thread['customer_id']; ?>" class="block p-4 hover:bg-gray-50">
+                            <a href="messages.php?order_id=<?php echo $thread['order_id']; ?>&receiver_id=<?php echo $thread['customer_id']; ?>" class="block p-4 hover:bg-gray-50 transition duration-150 ease-in-out">
                                 <div class="flex justify-between items-center">
-                                    <p class="font-bold text-gray-900"><?php echo htmlspecialchars($thread['customer_name']); ?></p>
-                                    <span class="text-xs text-gray-500"><?php echo date("M d", strtotime($thread['last_message_time'])); ?></span>
+                                    <p class="font-semibold text-gray-900 truncate"><?php echo htmlspecialchars($thread['customer_name']); ?></p>
+                                    <span class="text-xs text-gray-500 flex-shrink-0 ml-2"><?php echo date("M d", strtotime($thread['last_message_time'])); ?></span>
                                 </div>
-                                <p class="text-sm text-gray-600 mt-1">
-                                    Order #<?php echo $thread['order_id']; ?>: 
-                                    <span class="<?php echo ($thread['unread_count'] > 0) ? 'font-bold text-gray-800' : 'text-gray-500'; ?>">
-                                        <?php echo htmlspecialchars(substr($thread['last_message'], 0, 50)) . (strlen($thread['last_message']) > 50 ? '...' : ''); ?>
-                                    </span>
-                                </p>
-                                <?php if($thread['unread_count'] > 0): ?>
-                                    <div class="flex justify-end mt-2">
-                                        <span class="px-2 py-1 text-xs font-bold text-white bg-red-500 rounded-full"><?php echo $thread['unread_count']; ?></span>
-                                    </div>
-                                <?php endif; ?>
+                                <div class="flex justify-between items-start mt-1">
+                                    <p class="text-sm text-gray-600">
+                                        Order #<?php echo $thread['order_id']; ?>: 
+                                        <span class="<?php echo ($thread['unread_count'] > 0) ? 'font-bold text-gray-800' : 'text-gray-500'; ?>">
+                                            <?php echo htmlspecialchars(substr($thread['last_message'], 0, 50)) . (strlen($thread['last_message']) > 50 ? '...' : ''); ?>
+                                        </span>
+                                    </p>
+                                    <?php if($thread['unread_count'] > 0): ?>
+                                        <span class="ml-2 px-2 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full"><?php echo $thread['unread_count']; ?></span>
+                                    <?php endif; ?>
+                                </div>
                             </a>
                         <?php endforeach; endif; ?>
                     </div>
                 </div>
             </div>
         </div>
+        <div style="padding-bottom:100px;" class="md:hidden"></div>
     </div>
     <script src="../js/script.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
 </body>
 </html>

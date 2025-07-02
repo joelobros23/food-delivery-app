@@ -171,6 +171,7 @@ $active_page = 'menu';
                 </div>
             </form>
         </div>
+        <div style="padding-bottom:100px;" class="md:hidden"></div>
     </div>
     <script src="../js/script.js"></script>
     <script src="../js/store_menu.js"></script>

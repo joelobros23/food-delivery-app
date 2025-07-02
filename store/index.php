@@ -170,6 +170,7 @@ $active_page = 'dashboard';
                         </table>
                     </div>
                 </div>
+                <div style="padding-bottom:100px;" class="md:hidden"></div>
             </div>
         </div>
     </div>

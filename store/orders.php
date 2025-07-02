@@ -60,6 +60,7 @@ $active_page = 'orders'; // Ensure the sidebar knows which page is active
                 </div>
             </div>
         </div>
+        <div style="padding-bottom:100px;" class="md:hidden"></div>
     </div>
     <script src="../js/store_orders.js"></script>
     <script src="../js/script.js"></script>
